@@ -195,6 +195,8 @@ impl WindowManager {
 
         let mut operations_successful = true;
 
+        // Minimizing is a desktop window concept.
+        #[cfg(desktop)]
         if window.is_minimized().unwrap_or(false) {
             logging!(debug, Type::Window, "窗口已最小化，正在取消最小化");
             if let Err(e) = window.unminimize() {

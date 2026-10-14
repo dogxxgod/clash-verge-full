@@ -1,5 +1,7 @@
+#[cfg(desktop)]
 use dark_light::{Mode as SystemTheme, detect as detect_system_theme};
 use tauri::utils::config::Color;
+#[cfg(desktop)]
 use tauri::webview::PageLoadEvent;
 use tauri::{Theme, WebviewWindow};
 
@@ -13,21 +15,27 @@ const LIGHT_BACKGROUND_COLOR: Color = Color(245, 245, 245, 255); // #F5F5F5
 const DARK_BACKGROUND_HEX: &str = "#2E303D";
 const LIGHT_BACKGROUND_HEX: &str = "#F5F5F5";
 
+#[cfg(desktop)]
 const DEFAULT_WIDTH: f64 = 940.0;
+#[cfg(desktop)]
 const DEFAULT_HEIGHT: f64 = 700.0;
 
+#[cfg(desktop)]
 const MINIMAL_WIDTH: f64 = 520.0;
+#[cfg(desktop)]
 const MINIMAL_HEIGHT: f64 = 520.0;
 
 #[cfg(target_os = "linux")]
 const DEFAULT_DECORATIONS: bool = false;
-#[cfg(not(target_os = "linux"))]
+#[cfg(all(desktop, not(target_os = "linux")))]
 const DEFAULT_DECORATIONS: bool = true;
 
+#[cfg(desktop)]
 const fn restored_window_size_is_too_small(width: u32, height: u32) -> bool {
     width < MINIMAL_WIDTH as u32 || height < MINIMAL_HEIGHT as u32
 }
 
+#[cfg(desktop)]
 fn restore_default_size_if_needed(window: &WebviewWindow) {
     let Ok(size) = window.outer_size() else {
         return;
@@ -44,6 +52,17 @@ fn restore_default_size_if_needed(window: &WebviewWindow) {
     logging_error!(Type::Window, window.center());
 }
 
+/// The mobile runtime creates and owns the main window; reuse it instead of building another.
+#[cfg(mobile)]
+pub async fn build_new_window() -> Result<WebviewWindow, String> {
+    use tauri::Manager as _;
+
+    handle::Handle::app_handle()
+        .get_webview_window("main")
+        .ok_or_else(|| "main window is not available".to_string())
+}
+
+#[cfg(desktop)]
 pub async fn build_new_window() -> Result<WebviewWindow, String> {
     let app_handle = handle::Handle::app_handle();
 

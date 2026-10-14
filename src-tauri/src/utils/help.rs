@@ -240,7 +240,15 @@ pub fn get_last_part_and_decode(url: &str) -> Option<String> {
 }
 
 pub fn open_file(path: PathBuf) -> Result<()> {
+    #[cfg(desktop)]
     open::that_detached(path.as_os_str())?;
+    #[cfg(mobile)]
+    {
+        use tauri_plugin_opener::OpenerExt as _;
+        crate::core::handle::Handle::app_handle()
+            .opener()
+            .open_path(path.to_string_lossy().to_string(), None::<&str>)?;
+    }
     Ok(())
 }
 

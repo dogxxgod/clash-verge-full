@@ -50,6 +50,10 @@ split-debuginfo = "unpacked"
 # Backport Windows menu command ID recycling on the muda 0.20 compatibility branch.
 muda = { git = "https://github.com/wonfen/muda.git", rev = "547de49352791653fbdfa785f20f3c7ece8468e2" }
 
+# The upstream crate references a macOS/Linux-only path variable without an Android arm.
+[patch."https://github.com/clash-verge-rev/clash-verge-service-ipc.git"]
+clash_verge_service_ipc = { path = "vendor/clash-verge-service-ipc" }
+
 [workspace.dependencies]
 clash-verge-draft = { path = "crates/clash-verge-draft" }
 clash-verge-media-unlock = { path = "crates/clash-verge-media-unlock" }

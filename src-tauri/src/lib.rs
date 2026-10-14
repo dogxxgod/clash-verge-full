@@ -45,17 +45,8 @@ mod app_init {
         let mut builder = builder
             .plugin(tauri_plugin_clash_verge_sysinfo::init())
             .plugin(tauri_plugin_notification::init())
-            .plugin(
-                tauri_plugin_updater::Builder::new()
-                    .default_version_comparator(|current, release| {
-                        release.version > current
-                            || core::updater::is_build_to_stable(&current.to_string(), &release.version.to_string())
-                    })
-                    .build(),
-            )
             .plugin(tauri_plugin_clipboard_manager::init())
             .plugin(tauri_plugin_process::init())
-            .plugin(tauri_plugin_global_shortcut::Builder::new().build())
             .plugin(tauri_plugin_fs::init())
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_shell::init())
@@ -68,6 +59,20 @@ mod app_init {
                     .socket_path(crate::config::IClashTemp::guard_external_controller_ipc())
                     .build(),
             );
+
+        #[cfg(desktop)]
+        {
+            builder = builder
+                .plugin(
+                    tauri_plugin_updater::Builder::new()
+                        .default_version_comparator(|current, release| {
+                            release.version > current
+                                || core::updater::is_build_to_stable(&current.to_string(), &release.version.to_string())
+                        })
+                        .build(),
+                )
+                .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+        }
 
         // Devtools plugin only in debug mode with feature tauri-dev
         // to avoid duplicated registering of logger since the devtools plugin also registers a logger
@@ -98,29 +103,39 @@ mod app_init {
 
     /// Setup autostart plugin
     pub fn setup_autostart(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-        #[cfg(target_os = "macos")]
-        let mut auto_start_plugin_builder = tauri_plugin_autostart::Builder::new();
-        #[cfg(not(target_os = "macos"))]
-        let auto_start_plugin_builder = tauri_plugin_autostart::Builder::new();
-
-        #[cfg(target_os = "macos")]
+        #[cfg(desktop)]
         {
-            auto_start_plugin_builder = auto_start_plugin_builder
-                .macos_launcher(MacosLauncher::LaunchAgent)
-                .app_name(&app.config().identifier);
+            #[cfg(target_os = "macos")]
+            let mut auto_start_plugin_builder = tauri_plugin_autostart::Builder::new();
+            #[cfg(not(target_os = "macos"))]
+            let auto_start_plugin_builder = tauri_plugin_autostart::Builder::new();
+
+            #[cfg(target_os = "macos")]
+            {
+                auto_start_plugin_builder = auto_start_plugin_builder
+                    .macos_launcher(MacosLauncher::LaunchAgent)
+                    .app_name(&app.config().identifier);
+            }
+            app.handle().plugin(auto_start_plugin_builder.build())?;
         }
-        app.handle().plugin(auto_start_plugin_builder.build())?;
+        #[cfg(mobile)]
+        let _ = app;
         Ok(())
     }
 
     /// Setup window state management
     pub fn setup_window_state(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-        logging!(debug, Type::Setup, "初始化窗口状态管理...");
-        let window_state_plugin = tauri_plugin_window_state::Builder::new()
-            .with_filename(files::WINDOW_STATE)
-            .with_state_flags(tauri_plugin_window_state::StateFlags::default())
-            .build();
-        app.handle().plugin(window_state_plugin)?;
+        #[cfg(desktop)]
+        {
+            logging!(debug, Type::Setup, "初始化窗口状态管理...");
+            let window_state_plugin = tauri_plugin_window_state::Builder::new()
+                .with_filename(files::WINDOW_STATE)
+                .with_state_flags(tauri_plugin_window_state::StateFlags::default())
+                .build();
+            app.handle().plugin(window_state_plugin)?;
+        }
+        #[cfg(mobile)]
+        let _ = app;
         Ok(())
     }
 
@@ -153,6 +168,7 @@ fn handle_singleton_startup(
     }
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> std::process::ExitCode {
     #[cfg(all(target_os = "macos", not(debug_assertions), not(test), not(feature = "verge-dev")))]
     if utils::macos_launch_guard::enforce_before_initialization() == utils::macos_launch_guard::LaunchDisposition::Exit
@@ -170,6 +186,9 @@ pub fn run() -> std::process::ExitCode {
         logging!(error, Type::Setup, "应用数据目录所有权修复失败: {error:#}");
     }
 
+    // On mobile the process lifetime is managed by the OS, and the app data directory is only
+    // resolvable through the AppHandle, so the singleton/embedded server starts inside setup().
+    #[cfg(desktop)]
     match handle_singleton_startup(app_init::init_singleton_check(), utils::startup::report_error) {
         StartupAction::Continue => {}
         StartupAction::ExitSuccess => return std::process::ExitCode::SUCCESS,
@@ -207,6 +226,18 @@ pub fn run() -> std::process::ExitCode {
                 APP_HANDLE
                     .set(app.app_handle().clone())
                     .expect("failed to set global app handle");
+
+                // The app data directory requires the AppHandle on mobile, so the
+                // singleton check and embedded server are initialized here.
+                #[cfg(mobile)]
+                {
+                    match handle_singleton_startup(app_init::init_singleton_check(), utils::startup::report_error) {
+                        StartupAction::Continue | StartupAction::ExitSuccess => {}
+                        StartupAction::ExitFailure => {
+                            logging!(warn, Type::Setup, "单例初始化失败,继续以降级模式启动");
+                        }
+                    }
+                }
 
                 if let Err(e) = resolve::init_work_dir_and_logger() {
                     logging!(error, Type::Setup, "Failed to init work dir/logger: {e:#}");
@@ -249,12 +280,14 @@ pub fn run() -> std::process::ExitCode {
     mod event_handlers {
         #[cfg(target_os = "macos")]
         use crate::core::lightweight;
+        #[cfg(desktop)]
         use crate::utils::window_manager::WindowManager;
         use crate::{
-            config::Config,
-            core::{self, handle, hotkey},
+            core::{self, handle},
             process::AsyncHandler,
         };
+        #[cfg(desktop)]
+        use crate::{config::Config, core::hotkey};
         use clash_verge_logging::{Type, logging};
         use tauri::AppHandle;
         #[cfg(target_os = "macos")]
@@ -288,6 +321,7 @@ pub fn run() -> std::process::ExitCode {
             }
         }
 
+        #[cfg(desktop)]
         pub fn handle_window_close(api: &tauri::WindowEvent) {
             #[cfg(target_os = "macos")]
             handle::Handle::global().set_activation_policy_accessory();
@@ -304,6 +338,7 @@ pub fn run() -> std::process::ExitCode {
             }
         }
 
+        #[cfg(desktop)]
         pub fn handle_window_focus(focused: bool) {
             AsyncHandler::spawn(move || async move {
                 let is_enable_global_hotkey = Config::verge().await.data_arc().enable_global_hotkey.unwrap_or(true);
@@ -404,6 +439,7 @@ pub fn run() -> std::process::ExitCode {
         }
         #[allow(unused_variables)]
         tauri::RunEvent::ExitRequested { api, code, .. } => {
+            #[cfg(desktop)]
             if core::lightweight::is_in_lightweight_mode() && !handle::Handle::global().is_exiting() {
                 api.prevent_exit();
             } else if code.is_none() {
@@ -414,7 +450,17 @@ pub fn run() -> std::process::ExitCode {
                     });
                 }
             }
+            #[cfg(mobile)]
+            {
+                // Mobile exits are driven by the OS; run the best-effort cleanup and let it go.
+                if !handle::Handle::global().is_exiting() {
+                    AsyncHandler::block_on(async {
+                        feat::quit().await;
+                    });
+                }
+            }
         }
+        #[cfg(desktop)]
         tauri::RunEvent::WindowEvent { label, event, .. } if label == "main" => match event {
             tauri::WindowEvent::CloseRequested { .. } => {
                 event_handlers::handle_window_close(&event);

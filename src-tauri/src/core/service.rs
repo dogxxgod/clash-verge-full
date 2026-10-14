@@ -343,6 +343,12 @@ pub(crate) fn trusted_service_evidence() -> Result<bool> {
     macos_service_install_marker_exists().context("failed to inspect launchd service registration")
 }
 
+/// Android ships no privileged helper as part of this app.
+#[cfg(target_os = "android")]
+pub(crate) const fn trusted_service_evidence() -> Result<bool> {
+    Ok(false)
+}
+
 /// Stateless legacy façade over [`RUN_STATE`] retained for existing call sites.
 pub struct ServiceManager;
 
@@ -682,6 +688,11 @@ fn linux_running_as_root() -> bool {
     use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
     let app_handle = handle::Handle::app_handle();
     is_current_app_handle_admin(app_handle)
+}
+
+#[cfg(target_os = "android")]
+fn uninstall_service() -> Result<()> {
+    bail!("a privileged helper service is not supported on this platform");
 }
 
 #[cfg(target_os = "macos")]

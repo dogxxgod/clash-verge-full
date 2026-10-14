@@ -161,6 +161,8 @@ impl CoreManager {
     #[tracing::instrument(skip_all, level = "info", fields(pid = tracing::field::Empty))]
     pub(super) async fn start_core_by_sidecar(&self) -> Result<()> {
         self.wait_for_sidecar_exit().await?;
+        // The service coordination lock only exists on desktop platforms.
+        #[cfg(desktop)]
         let execution = clash_verge_service_ipc::execution::reserve_sidecar()
             .await
             .inspect_err(service::record_residual_service)
@@ -189,10 +191,15 @@ impl CoreManager {
 
         #[cfg(unix)]
         let previous_mask = unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(0o077) };
+        // Android cannot resolve `relative_command_path` (it starts from `/system/bin`), so the
+        // packaged core is spawned directly from the extracted native library directory.
+        #[cfg(desktop)]
         let command = app_handle
             .shell()
             .sidecar(clash_core.as_str())
             .map_err(|error| anyhow::anyhow!("failed to build sidecar command for core {clash_core:?}: {error:#}"))?;
+        #[cfg(mobile)]
+        let command = app_handle.shell().command(dirs::core_sidecar_binary_path(clash_core.as_str())?);
         let command = command.args([
             "-d",
             dirs::path_to_str(&config_dir)?,
@@ -218,7 +225,14 @@ impl CoreManager {
             )
         })?;
         let (terminated, termination) = tokio::sync::oneshot::channel();
-        *self.sidecar_exit.lock().await = Some(execution.release_after_exit(child.pid(), termination));
+        #[cfg(desktop)]
+        let sidecar_exit_task = execution.release_after_exit(child.pid(), termination);
+        // Mobile has no service coordination to release; keep the exit waiter contract only.
+        #[cfg(mobile)]
+        let sidecar_exit_task = tokio::spawn(async move {
+            let _ = termination.await;
+        });
+        *self.sidecar_exit.lock().await = Some(sidecar_exit_task);
         #[cfg(target_os = "windows")]
         let job = {
             match create_and_assign_sidecar_job(child.pid()) {

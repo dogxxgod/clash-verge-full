@@ -7,6 +7,7 @@ use reqwest::{
 };
 use smartstring::alias::String;
 use std::{sync::Arc, time::Duration};
+#[cfg(desktop)]
 use sysproxy::Sysproxy;
 use tauri::Url;
 
@@ -233,9 +234,17 @@ impl NetworkManager {
                 Some(format!("http://127.0.0.1:{port}"))
             }
             ProxyType::System => {
-                if let Ok(p @ Sysproxy { enable: true, .. }) = Sysproxy::get_system_proxy() {
-                    Some(format!("http://{}:{}", p.host, p.port))
-                } else {
+                // Mobile has no system proxy; fall back to a direct connection.
+                #[cfg(desktop)]
+                {
+                    if let Ok(p @ Sysproxy { enable: true, .. }) = Sysproxy::get_system_proxy() {
+                        Some(format!("http://{}:{}", p.host, p.port))
+                    } else {
+                        None
+                    }
+                }
+                #[cfg(mobile)]
+                {
                     None
                 }
             }

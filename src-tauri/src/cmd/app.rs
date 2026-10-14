@@ -12,22 +12,22 @@ use tauri::{AppHandle, Manager as _, ipc::Channel};
 #[specta::specta]
 pub async fn open_app_dir() -> CmdResult<()> {
     let app_dir = dirs::app_home_dir().stringify_err()?;
-    open::that(app_dir).stringify_err()
+    crate::utils::help::open_file(app_dir).stringify_err()
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn open_core_dir() -> CmdResult<()> {
-    let core_dir = tauri::utils::platform::current_exe().stringify_err()?;
+    let core_dir = dirs::core_sidecar_binary_path("verge-mihomo").stringify_err()?;
     let core_dir = core_dir.parent().ok_or("failed to get core dir")?;
-    open::that(core_dir).stringify_err()
+    crate::utils::help::open_file(core_dir.to_path_buf()).stringify_err()
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn open_logs_dir() -> CmdResult<()> {
     let log_dir = dirs::app_logs_dir().stringify_err()?;
-    open::that(log_dir).stringify_err()
+    crate::utils::help::open_file(log_dir).stringify_err()
 }
 
 #[tauri::command]

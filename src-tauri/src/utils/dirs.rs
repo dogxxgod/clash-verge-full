@@ -26,6 +26,13 @@ pub static UPDATE_INTERVAL_MIGRATED: &str = ".update-interval-migrated";
 
 /// Uses the same platform data resolver as Tauri, including before its handle exists.
 pub fn app_home_dir() -> Result<PathBuf> {
+    // `dirs` reports Linux XDG paths on Android, which the app cannot write to; the
+    // platform-correct location is only reachable through the Tauri path resolver.
+    #[cfg(mobile)]
+    if let Some(app_handle) = crate::APP_HANDLE.get() {
+        return Ok(app_handle.path().app_data_dir()?);
+    }
+
     ::dirs::data_dir()
         .map(|root| root.join(APP_ID))
         .ok_or_else(|| anyhow::anyhow!("Failed to get the app home directory"))
@@ -131,6 +138,54 @@ pub fn sidecar_log_dir() -> Result<PathBuf> {
     let _ = std::fs::create_dir_all(&log_dir);
 
     Ok(log_dir)
+}
+
+/// Absolute path of the packaged core binary.
+///
+/// Android only executes files outside the app's writable data directory, so the core ships as a
+/// shared library inside the APK and runs from the extracted native library directory.
+#[cfg(target_os = "android")]
+pub fn core_sidecar_binary_path(core: &str) -> Result<PathBuf> {
+    let lib_dir = android_native_library_dir()
+        .ok_or_else(|| anyhow::anyhow!("failed to locate the native library directory"))?;
+    let binary = lib_dir.join(format!("lib{core}.so"));
+    if !binary.is_file() {
+        return Err(anyhow::anyhow!("core binary {} was not packaged", binary.display()));
+    }
+    Ok(binary)
+}
+
+/// The directory the package manager extracted this app's native libraries into.
+#[cfg(target_os = "android")]
+fn android_native_library_dir() -> Option<PathBuf> {
+    let maps = fs::read_to_string("/proc/self/maps").ok()?;
+    for line in maps.lines() {
+        let path = line.rsplit_once(' ')?.1.trim();
+        if path.ends_with("/libapp_lib.so") {
+            return Path::new(path).parent().map(Path::to_path_buf);
+        }
+    }
+    None
+}
+
+#[cfg(all(mobile, not(target_os = "android")))]
+pub fn core_sidecar_binary_path(_core: &str) -> Result<PathBuf> {
+    Err(anyhow::anyhow!("packaged core binaries are not supported on this platform"))
+}
+
+/// Android has no privileged helper service.
+#[cfg(target_os = "android")]
+pub fn service_path() -> Result<PathBuf> {
+    Err(anyhow::anyhow!("a privileged helper service is not supported on this platform"))
+}
+
+#[cfg(desktop)]
+pub fn core_sidecar_binary_path(core: &str) -> Result<PathBuf> {
+    let exe = std::env::current_exe()?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("failed to resolve the application directory"))?;
+    Ok(dir.join(core))
 }
 
 pub fn service_log_dir() -> Result<PathBuf> {
@@ -239,6 +294,12 @@ fn sidecar_ipc_path_for(
 #[cfg(windows)]
 fn sidecar_ipc_path_for(_app_root: &std::path::Path, identity: &clash_verge_service_ipc::OwnerIdentity) -> PathBuf {
     PathBuf::from(sidecar_pipe_name(identity, cfg!(feature = "verge-dev")))
+}
+
+#[cfg(target_os = "android")]
+fn sidecar_ipc_path_for(app_root: &std::path::Path, _identity: &clash_verge_service_ipc::OwnerIdentity) -> PathBuf {
+    // `sockaddr_un` is fine with the app data dir length on Android (well under 104 bytes).
+    app_root.join("verge-mihomo.sock")
 }
 
 #[cfg(any(windows, test))]

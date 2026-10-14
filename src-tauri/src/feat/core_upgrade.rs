@@ -40,6 +40,13 @@ pub struct CoreUpgradeReport {
     pub upgraded: bool,
 }
 
+#[cfg(mobile)]
+pub async fn upgrade_core(_force: bool) -> Result<CoreUpgradeReport> {
+    // The core ships inside the APK/IPA and cannot be replaced at runtime.
+    Err(anyhow!("the core is packaged with the application and cannot be upgraded in place"))
+}
+
+#[cfg(desktop)]
 pub async fn upgrade_core(force: bool) -> Result<CoreUpgradeReport> {
     let _serialized = UPGRADE_LOCK.lock().await;
     let core = Config::verge().await.latest_arc().get_valid_clash_core();

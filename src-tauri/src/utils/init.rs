@@ -593,6 +593,12 @@ pub const fn init_scheme() -> Result<()> {
     Ok(())
 }
 
+/// Deep links are declared as intent filters in the Android manifest.
+#[cfg(target_os = "android")]
+pub const fn init_scheme() -> Result<()> {
+    Ok(())
+}
+
 #[cfg(target_os = "linux")]
 const DEEP_LINK_SCHEMES: &[&str] = &["clash", "clash-verge"];
 

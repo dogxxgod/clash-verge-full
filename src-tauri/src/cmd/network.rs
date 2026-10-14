@@ -1,45 +1,71 @@
 use super::CmdResult;
 use crate::cmd::StringifyErr as _;
-use crate::core::{proxy_control, sysopt::Sysopt};
+#[cfg(desktop)]
+use crate::core::proxy_control;
+#[cfg(desktop)]
+use crate::core::sysopt::Sysopt;
 
 use gethostname::gethostname;
+#[cfg(desktop)]
 use sysproxy::{Autoproxy, Sysproxy};
 use tauri_plugin_clash_verge_sysinfo;
 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_sys_proxy() -> CmdResult<SystemProxy> {
-    Sysopt::global().wait_idle().await;
-    // With no network service there is no proxy configured anywhere, which reads as disabled.
-    let sys_proxy = match Sysproxy::get_system_proxy() {
-        Err(error) if proxy_control::is_missing_network_service(&error) => Sysproxy::default(),
-        other => other.stringify_err()?,
-    };
-    let Sysproxy {
-        host,
-        bypass,
-        port,
-        enable,
-    } = sys_proxy;
+    #[cfg(mobile)]
+    {
+        // Android/iOS expose no per-app system proxy; report it as disabled.
+        Ok(SystemProxy {
+            enable: false,
+            server: std::string::String::new(),
+            bypass: std::string::String::new(),
+        })
+    }
+    #[cfg(desktop)]
+    {
+        Sysopt::global().wait_idle().await;
+        // With no network service there is no proxy configured anywhere, which reads as disabled.
+        let sys_proxy = match Sysproxy::get_system_proxy() {
+            Err(error) if proxy_control::is_missing_network_service(&error) => Sysproxy::default(),
+            other => other.stringify_err()?,
+        };
+        let Sysproxy {
+            host,
+            bypass,
+            port,
+            enable,
+        } = sys_proxy;
 
-    Ok(SystemProxy {
-        enable,
-        server: format!("{host}:{port}"),
-        bypass,
-    })
+        Ok(SystemProxy {
+            enable,
+            server: format!("{host}:{port}"),
+            bypass,
+        })
+    }
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_auto_proxy() -> CmdResult<AutoProxy> {
-    Sysopt::global().wait_idle().await;
-    let auto_proxy = match Autoproxy::get_auto_proxy() {
-        Err(error) if proxy_control::is_missing_network_service(&error) => Autoproxy::default(),
-        other => other.stringify_err()?,
-    };
-    let Autoproxy { enable, url } = auto_proxy;
+    #[cfg(mobile)]
+    {
+        Ok(AutoProxy {
+            enable: false,
+            url: std::string::String::new(),
+        })
+    }
+    #[cfg(desktop)]
+    {
+        Sysopt::global().wait_idle().await;
+        let auto_proxy = match Autoproxy::get_auto_proxy() {
+            Err(error) if proxy_control::is_missing_network_service(&error) => Autoproxy::default(),
+            other => other.stringify_err()?,
+        };
+        let Autoproxy { enable, url } = auto_proxy;
 
-    Ok(AutoProxy { enable, url })
+        Ok(AutoProxy { enable, url })
+    }
 }
 
 #[tauri::command]
