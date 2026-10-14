@@ -54,6 +54,11 @@ muda = { git = "https://github.com/wonfen/muda.git", rev = "547de49352791653fbdf
 [patch."https://github.com/clash-verge-rev/clash-verge-service-ipc.git"]
 clash_verge_service_ipc = { path = "vendor/clash-verge-service-ipc" }
 
+# The upstream plugin declares an Android project that it does not ship, which breaks the
+# Gradle build. The Rust API is used on Android, so the Kotlin module is dropped.
+[patch."https://github.com/clash-verge-rev/tauri-plugin-mihomo"]
+tauri-plugin-mihomo = { path = "vendor/tauri-plugin-mihomo" }
+
 [workspace.dependencies]
 clash-verge-draft = { path = "crates/clash-verge-draft" }
 clash-verge-media-unlock = { path = "crates/clash-verge-media-unlock" }
