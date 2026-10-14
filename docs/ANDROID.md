@@ -18,6 +18,7 @@
 | 服务模式 | Android 无特权守护进程，`core::service` 自动退化为 "未安装" 状态，内核走 Sidecar 路径 |
 | 标识符 | Android 包名不允许连字符，`tauri.android.conf.json` 覆盖为 `io.github.clashverge.rev` |
 | 能力（capabilities） | 新增 `mobile-capability`；`migrated` 中桌面专属权限（global-shortcut）移除 |
+| tauri-plugin-mihomo | 上游插件 `build.rs` 声明 `.android_path("android")` 但仓库不提供该 Kotlin 工程，Gradle 会报 “:tauri-plugin-mihomo 无可用 variant”。已 vendor 到 `vendor/tauri-plugin-mihomo` 并移除该声明（应用只用其 Rust API） |
 
 ## 已知限制
 
@@ -50,10 +51,16 @@ docker exec cv-android bash -lc 'source /opt/container-env.sh && cd /workspace/c
 docker exec cv-android bash -lc 'source /opt/container-env.sh && cd /workspace/clash-verge-rev \
   && pnpm tauri android init --ci \
   && bash scripts/android/prepare.sh \
-  && pnpm tauri android build --apk --target aarch64'
+  && CI=true CARGO_BUILD_JOBS=6 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_DEV_STRIP=debuginfo \
+     pnpm tauri android build --apk --debug --target aarch64'
 ```
 
-产物位于 `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`（未签名，需用 debug 或自签名证书安装）。
+产物位于 `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`
+（debug 签名，`minSdk 24 / targetSdk 36`，可直接安装到 Android 16；不 strip 时约 225MB，
+上面两个环境变量把 debuginfo 去掉后约 50MB）。
+
+> 已实测：package `io.github.clashverge.rev`、versionName `2.5.9`、compileSdk/targetSdk `36`，
+> `lib/arm64-v8a/` 内含 `libapp_lib.so` 与 `libverge-mihomo(.alpha).so`。
 
 `scripts/android/prepare.sh` 会：
 
