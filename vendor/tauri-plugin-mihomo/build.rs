@@ -41,7 +41,9 @@ const COMMANDS: &[&str] = &[
 ];
 
 fn main() {
-    // The plugin has no Kotlin project; keeping `android_path` would make the Android build
-    // include a Gradle module that does not exist. The Rust API still works on Android.
-    tauri_plugin::Builder::new(COMMANDS).ios_path("ios").build();
+    // The plugin is pure Rust: it ships no Kotlin project and no Swift package. Declaring
+    // `android_path`/`ios_path` would make the mobile builds try to include a module that does
+    // not exist — on iOS that panics inside tauri-utils' `link_apple_library` because it runs
+    // `xcodebuild` with a `cwd` that is missing. The Rust API works on both platforms without it.
+    tauri_plugin::Builder::new(COMMANDS).build();
 }
