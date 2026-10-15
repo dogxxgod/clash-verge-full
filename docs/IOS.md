@@ -94,13 +94,39 @@ iOS 上**第 1、2、4 步都不存在**（`enhance/tun.rs` 没有 iOS 分支，
 
 ### 1.5 内核从哪里来
 
-- **上游不发布 iOS 产物**（已核实 v1.19.32 的 release 资产只有 android / darwin / freebsd / linux / windows）。
+- **上游不发布 iOS 产物**（已核实：v1.19.32 共 127 个发布资产，平台前缀只有 `mihomo-android` /
+  `mihomo-darwin` / `mihomo-freebsd` / `mihomo-linux`，按 `ios`、`iphone` 匹配的结果为 0）。
   `scripts/prebuild.mjs` 的 `PLATFORM_MAP` 也没有 `aarch64-apple-ios`，因此 `pnpm prebuild` 这条路径在 iOS 上不适用。
 - 需要自行把 mihomo 编成可链接的库。**可参考的现成先例**：ClashMetaForAndroid 的 `core` 模块
   （`core/build.gradle.kts`）用 golang-android 插件把 mihomo 编成 `libclash.so`，Go 包名 `cfa/native`，
   构建 tag 为 `foss,with_gvisor,cmfa`。同一套"包装成库"的思路换成 `gomobile bind -target=ios`（产出 XCFramework）
-  或 `-buildmode=c-archive` 就是 iOS 需要的形态——**但这条链路本文档未验证**：
-  mihomo 的依赖在 iOS 上是否需要额外 tag、`gomobile` 是否支持其全部依赖，都必须在装了 Xcode 的机器上先做最小实验。
+  或 `-buildmode=c-archive` 就是 iOS 需要的形态。
+- **编内核这件事同样绕不开 Xcode（已实测，非推测）**。在主机上取得 mihomo v1.19.32 源码后：
+
+  ```
+  GOOS=ios GOARCH=arm64 CGO_ENABLED=0 go build ...
+  # -> ios/arm64 requires external (cgo) linking, but cgo is not enabled
+
+  GOOS=ios GOARCH=arm64 CGO_ENABLED=1 go build -buildmode=c-archive ...
+  # -> # runtime/cgo
+  #    gcc_arm64.S:30:16: error: brackets expression not supported on this target
+  #        stp x29, x30, [sp, #-96]!
+  ```
+
+  第一条说明 darwin/ios 目标**必须开启 cgo**（iOS 依赖 SDK 提供的动态链接器），无法用纯 Go 绕过；
+  第二条说明开启 cgo 后会调用主机的 C 编译器去编译 `runtime/cgo` 的 arm64 汇编，因缺少 iOS SDK 的
+  `clang` 与目标三元组而失败。所以"装 Xcode 只为跑 UI"是误解：**内核库的产出同样依赖它**。
+- 在装有 Xcode 的机器上，预期的最小形态是：
+
+  ```bash
+  export SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+  export CC="$(xcrun --sdk iphoneos -f clang) -isysroot $SDKROOT -arch arm64 -miphoneos-version-min=18.0"
+  export CGO_ENABLED=1 GOOS=ios GOARCH=arm64
+  go build -tags with_gvisor -buildmode=c-archive -o libmihomo.a <包装包>
+  ```
+
+  变量名与 tag 需要按 mihomo 当时的构建方式复核；`gomobile bind -target=ios` 会额外产出 XCFramework，
+  更适合直接嵌入扩展 target。**这段命令本文档未在 Xcode 环境下执行过。**
 - 因此 iOS 的 bundle 不能带桌面的 sidecar：`tauri.ios.conf.json` 已用 `bundle.externalBin: []` 覆盖，
   否则 `tauri-build` 会去找 `sidecar/verge-mihomo-aarch64-apple-ios`（机制见 §2 与 §3.2）。
 
