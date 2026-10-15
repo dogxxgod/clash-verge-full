@@ -48,3 +48,27 @@
     }
   }
 }
+
+@media screen and (max-width: 600px) {
+  .base-page {
+    > header {
+      flex: 0 0 48px;
+      padding: 0 12px;
+
+      .MuiTypography-root {
+        font-size: 18px !important;
+      }
+    }
+
+    .base-container {
+      > section {
+        padding: 6px 0;
+        scrollbar-gutter: auto;
+
+        .base-content {
+          width: calc(100% - 6px * 2);
+        }
+      }
+    }
+  }
+}

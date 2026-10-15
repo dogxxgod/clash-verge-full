@@ -255,11 +255,20 @@ const HomePage = () => {
   }, [])
 
   const renderCard = useCallback(
-    (cardKey: string, component: React.ReactNode, size: number = 6) => {
+    (
+      cardKey: string,
+      component: React.ReactNode,
+      size: { xs?: number; sm?: number; md?: number } | number = 6,
+    ) => {
       if (!homeCards[cardKey]) return null
 
+      const sizeProp =
+        typeof size === 'number'
+          ? { xs: 12, sm: size, md: size }
+          : { xs: 12, ...size }
+
       return (
-        <Grid size={size} key={cardKey}>
+        <Grid size={sizeProp} key={cardKey}>
           {component}
         </Grid>
       )
