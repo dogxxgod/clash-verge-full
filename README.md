@@ -111,3 +111,20 @@ CI=true CARGO_BUILD_JOBS=6 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_DEV_STRIP=deb
 - [tauri-apps/tauri](https://github.com/tauri-apps/tauri) — 应用框架
 
 感谢上述项目及其贡献者。
+
+### 上游基线
+
+本项目的起点是上游 `dev` 分支上的这一次提交：
+
+| 项 | 值 |
+| --- | --- |
+| 仓库 | [`clash-verge-rev/clash-verge-rev`](https://github.com/clash-verge-rev/clash-verge-rev) |
+| 基线提交（version hash） | `d4287970bc7dbe3430c9a33bf2922e355c92c0be` |
+| 提交说明 | `perf(tray): cache speed-text attributes and derive width arithmetically` |
+| 提交时间 | 2026-10-13 |
+| 上游版本号 | `2.5.9` |
+
+本项目基于 repo：**clash-verge-rev/clash-verge-rev**，version hash：
+**`d4287970bc7dbe3430c9a33bf2922e355c92c0be`**。感谢该项目前期的贡献 ——
+移动端移植能够成立，几乎全部基础（Rust 后端、Web 前端、配置与内核管理体系）都来自上游及其贡献者，
+本仓库在该基线之后新增的提交才是移植工作本身。
