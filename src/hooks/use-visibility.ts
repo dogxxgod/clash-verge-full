@@ -1,6 +1,15 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useState } from 'react'
 
+import getSystem from '@/utils/get-system'
+
+// Android reports the window as not visible even while it is in the foreground
+// (`Window::is_visible` is a no-op there), and the WebView already mirrors the
+// foreground state in `document.visibilityState`, so the window probe is only
+// meaningful on desktop. Without this the connections page and the traffic
+// monitor stay disabled on mobile.
+const IS_MOBILE = ['android', 'ios'].includes(getSystem())
+
 const isDocumentVisible = () =>
   typeof document === 'undefined' || document.visibilityState === 'visible'
 
@@ -13,7 +22,8 @@ export const useVisibility = () => {
     const appWindow = getCurrentWindow()
 
     const updateVisible = async () => {
-      const windowVisible = await appWindow.isVisible().catch(() => true)
+      const windowVisible =
+        IS_MOBILE || (await appWindow.isVisible().catch(() => true))
       if (mounted) {
         setVisible(isDocumentVisible() && windowVisible)
       }
