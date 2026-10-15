@@ -26,6 +26,19 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 4000,
+    rollupOptions: {
+      output: {
+        // Without a dedicated chunk, minification reuses one variable name for both the imported
+        // `MihomoWebSocket` and an unrelated internal object in the entry chunk. The later
+        // assignment wins, leaving every `connect_*` call a method lookup on the wrong object, and
+        // the connection/traffic/log sockets then fail silently behind their reconnect supervisors.
+        manualChunks(id) {
+          if (id.includes('tauri-plugin-mihomo-api')) {
+            return 'mihomo-api-chunk'
+          }
+        },
+      },
+    },
   },
   resolve: {
     alias: {
