@@ -49,6 +49,8 @@ pub mod updater;
 pub mod updater;
 pub mod validate;
 pub mod win_uwp;
+#[cfg(target_os = "android")]
+pub mod tun_android;
 
 pub use self::{manager::CoreManager, timer::Timer};
 pub use self::updater::SilentUpdater;

@@ -65,7 +65,7 @@ impl RunState {
 
     #[must_use]
     pub const fn tun_capable(&self) -> bool {
-        self.is_admin || self.service_usable()
+        cfg!(target_os = "android") || self.is_admin || self.service_usable()
     }
 
     /// In-flight, absent, and accepted-Sidecar states require no user decision.

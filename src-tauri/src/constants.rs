@@ -61,6 +61,9 @@ pub mod files {
 }
 
 pub mod tun {
+    #[cfg(target_os = "android")]
+    pub const DEFAULT_STACK: &str = "gvisor";
+    #[cfg(not(target_os = "android"))]
     pub const DEFAULT_STACK: &str = "mips";
 
     pub const DNS_HIJACK: &[&str] = &["any:53"];
@@ -77,5 +80,7 @@ pub mod tun {
         "dns-hijack",
         "strict-route",
         "mtu",
+        #[cfg(target_os = "android")]
+        "file-descriptor",
     ];
 }

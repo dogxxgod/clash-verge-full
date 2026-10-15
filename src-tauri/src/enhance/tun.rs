@@ -28,13 +28,15 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
             .and_then(|v| v.as_str())
             .unwrap_or("fake-ip");
 
-        if current_mode == "fake-ip" || !dns_val.contains_key(Value::from("enhanced-mode")) {
+        #[cfg(target_os = "android")]
+        let force_fake_ip = true;
+        #[cfg(not(target_os = "android"))]
+        let force_fake_ip = false;
+
+        if force_fake_ip || current_mode == "fake-ip" || !dns_val.contains_key(Value::from("enhanced-mode")) {
             revise!(dns_val, "enable", true);
             revise!(dns_val, "ipv6", ipv6_val);
-
-            if !dns_val.contains_key(Value::from("enhanced-mode")) {
-                revise!(dns_val, "enhanced-mode", "fake-ip");
-            }
+            revise!(dns_val, "enhanced-mode", "fake-ip");
 
             if !dns_val.contains_key(Value::from("fake-ip-range")) {
                 revise!(dns_val, "fake-ip-range", "198.18.0.1/16");
@@ -49,6 +51,23 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     }
 
     revise!(tun_val, "enable", enable);
+
+    #[cfg(target_os = "android")]
+    {
+        revise!(tun_val, "stack", "gvisor");
+        revise!(tun_val, "auto-route", false);
+        revise!(tun_val, "auto-redirect", false);
+        revise!(tun_val, "auto-detect-interface", false);
+        revise!(tun_val, "strict-route", false);
+        revise!(tun_val, "device", "tun0");
+
+        if enable {
+            if let Some(fd) = crate::core::tun_android::get_tun_fd() {
+                revise!(tun_val, "file-descriptor", fd);
+            }
+        }
+    }
+
     revise!(config, "tun", tun_val);
 
     config

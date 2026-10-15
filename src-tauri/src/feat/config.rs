@@ -18,6 +18,19 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
 ///
 /// TUN patches do not always produce a Run State transition, so reconciliation is explicit.
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
+    #[cfg(target_os = "android")]
+    {
+        if let Some(enable) = patch.enable_tun_mode {
+            if enable {
+                if let Err(e) = crate::core::tun_android::start_vpn_service_and_wait_fd(std::time::Duration::from_secs(5)).await {
+                    clash_verge_logging::logging!(error, clash_verge_logging::Type::Core, "Failed to establish VPN TUN FD: {e:#}");
+                }
+            } else {
+                let _ = crate::core::tun_android::stop_vpn_service();
+            }
+        }
+    }
+
     apply_verge_patch(patch, not_save_file).await?;
     if patch.enable_tun_mode.is_some() {
         super::reconcile_tun_availability().await;

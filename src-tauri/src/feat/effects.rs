@@ -30,6 +30,10 @@ macro_rules! select_field {
         select_field!($effects, $field, [ClashConfig, TrayMenu, TrayTooltip, TrayIcon]);
         #[cfg(target_os = "linux")]
         if *$field == Some(true) { $effects.insert(Effect::RestartCore); }
+        // Android hands the tunnel descriptor to the core, so switching the mode off needs a
+        // restart too: only a fresh process releases the descriptor and the listener with it.
+        #[cfg(target_os = "android")]
+        if $field.is_some() { $effects.insert(Effect::RestartCore); }
     };
 }
 
