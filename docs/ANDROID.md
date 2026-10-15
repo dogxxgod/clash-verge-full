@@ -19,13 +19,27 @@
 | 标识符 | Android 包名不允许连字符，`tauri.android.conf.json` 覆盖为 `io.github.clashverge.rev` |
 | 能力（capabilities） | 新增 `mobile-capability`；`migrated` 中桌面专属权限（global-shortcut）移除 |
 | tauri-plugin-mihomo | 上游插件 `build.rs` 声明 `.android_path("android")` 但仓库不提供该 Kotlin 工程，Gradle 会报 “:tauri-plugin-mihomo 无可用 variant”。已 vendor 到 `vendor/tauri-plugin-mihomo` 并移除该声明（应用只用其 Rust API） |
+| TUN 模式 | 由 `VpnTunService`（`VpnService`）建立隧道并 `detachFd()`，经 JNI 把描述符交给内核的 `tun.file-descriptor`；自身包名加入 `addDisallowedApplication`，内核出站连接直接走物理网卡 |
+| 内核 TUN 参数 | Android 上强制 `stack: gvisor`、`auto-route / auto-redirect / strict-route: false`、`dns.enhanced-mode: fake-ip`：内核仅编译了 gvisor 栈，非 root 无法下发 iptables/nftables 规则，且被污染的域名解析会让浏览器长时间卡住 |
+| 非 root 包列表 | sing-tun 读取 `/data/system/packages.xml` 组装 Android 规则集，普通应用无权打开会导致 TUN 启动失败；`scripts/android/prepare.sh` 把内核中该定长字符串改写为等长的全局可读 XML 文件，得到空规则集 |
+
+## TUN 模式
+
+`src-tauri/src/core/tun_android.rs` 是 Rust 侧的全部实现，`scripts/android/templates/` 下是随源码分发的 Kotlin 部分（`gen/android` 被 gitignore，构建时由 `prepare.sh` 覆盖安装）。
+
+开关 TUN 的调用链：
+
+1. 前端 `patch_verge_config` → `feat::config::patch_verge`；
+2. 打开时 `start_vpn_service_and_wait_fd()`：申请 VPN 授权 → 启动前台服务 → 等待描述符，并用 `fcntl` 清除 `FD_CLOEXEC` 以便子进程继承；
+3. 配置生成时 `enhance::tun::use_tun` 写入 `file-descriptor` 与上述强制参数；
+4. 关闭时 `stop_vpn_service()` 并重启内核——只有新进程才会释放描述符与监听。
 
 ## 已知限制
 
-- **系统代理 / TUN 模式不可用**：Android 没有可写的系统代理，VPNService（TUN）需要在 Java/Kotlin 层实现，当前版本未包含。
-- **内核需要在应用内启动**：仅 `aarch64`（arm64-v8a）内核已打包。
-- **Geo 数据库不随包分发**：mihomo 首次需要时自行下载 `geoip.dat` / `geosite.dat` / `Country.mmdb`。
+- **仅 arm64-v8a**：只打包了 `aarch64` 内核。
+- **Geo 数据库随包分发**：Android 上应用资源无法作为普通文件读取，geo 数据在编译期嵌入二进制并在首次启动释放到应用目录。
 - 应用内更新不可用（升级需重新安装 APK）。
+- `packages.xml` 补丁依赖内核中该字符串的出现次数，`prepare.sh` 在次数不为 1 时会显式报错，内核升级后需重新确认。
 
 ## 构建
 
@@ -65,6 +79,23 @@ docker exec cv-android bash -lc 'source /opt/container-env.sh && cd /workspace/c
 `scripts/android/prepare.sh` 会：
 
 1. 下载 mihomo Android arm64 内核并按 Tauri 目标三元组命名放入 `src-tauri/sidecar/`；
-2. 把内核复制为 `gen/android/app/src/main/jniLibs/arm64-v8a/libverge-mihomo.so`；
-3. 让 Gradle 使用 legacy JNI 打包（`useLegacyPackaging = true`），确保内核被解压到 `nativeLibraryDir` 且可执行；
-4. 将 compileSdk/targetSdk 调整到 36（Android 16）。
+2. 从原始缓存派生一份改写过的内核（`node_modules/.verge/mihomo-android-arm64.vpn`），把内核读取系统包列表的路径改为等长的全局可读文件，原始缓存保持不变；
+3. 把派生内核复制为 `gen/android/app/src/main/jniLibs/arm64-v8a/libverge-mihomo.so`；
+4. 把 `scripts/android/templates/*.kt` 覆盖安装到生成工程的 `java/io/github/clashverge/rev/`；
+5. 让 Gradle 使用 legacy JNI 打包（`useLegacyPackaging = true`），确保内核被解压到 `nativeLibraryDir` 且可执行；
+6. 将 compileSdk/targetSdk 调整到 36（Android 16）；
+7. 在 manifest 中声明 `extractNativeLibs`、VPN 相关权限与 `VpnTunService`。
+
+因为 `gen/android` 被 gitignore，第 3、4、7 步是重新克隆后能构建出可用 APK 的必要条件。
+
+## 模拟器验证
+
+在 Android 16（API 36，arm64）模拟器上以 release 签名包实测通过：
+
+- `[TUN] Tun adapter listening at: tun0(fd=256)([198.18.0.1/30],...)` 说明描述符已成功交接；
+- 浏览器访问 `www.google.com` 命中 `DomainSuffix(google.com)` 走代理解析，`www.baidu.com` 命中 `GeoSite(CN)` 走直连；
+- Clash Verge 的“连接”页显示上述连接与实时上下行流量。
+
+> 模拟器上验证过但需要真机复核的一点：非 root 补丁改写的目标文件是可读的 AOSP 文件，
+> 但在 SELinux 下 `inotify` 监视该文件会被拒绝（日志中出现 `avc: denied { watch }`）。
+> 读取本身不受影响，实测不影响启动；真机首次运行时建议确认该告警是否出现。
