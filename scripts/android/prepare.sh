@@ -32,9 +32,49 @@ if [ ! -f "$CORE_CACHE" ]; then
   chmod 755 "$CORE_CACHE"
 fi
 
+# ------------------------------------------------ non-root package-list workaround
+# sing-tun builds its Android rule set by reading the system package list at
+# /data/system/packages.xml. An unprivileged app cannot open that file, so TUN
+# startup aborts with `read packages list: permission denied` and the listener
+# never comes up. The path is a fixed-length Go string inside the core, so it is
+# rewritten in place to a world-readable XML file of identical length: the reader
+# then gets a valid document with no package entries, which is exactly the empty
+# rule set a non-root tunnel needs. The cache stays pristine; installs use the
+# derived copy.
+CORE_ANDROID="$CACHE_DIR/mihomo-android-arm64.vpn"
+if [ ! -f "$CORE_ANDROID" ] || [ "$CORE_CACHE" -nt "$CORE_ANDROID" ]; then
+  echo "==> Relocating the core's Android package-list path for unprivileged use"
+  install -m 755 "$CORE_CACHE" "$CORE_ANDROID"
+  python3 - "$CORE_ANDROID" <<'PY'
+import sys
+
+PACKAGE_LIST = b"/data/system/packages.xml"
+REPLACEMENT = b"/system/././etc/fonts.xml"
+
+path = sys.argv[1]
+with open(path, "rb") as handle:
+    content = handle.read()
+
+if PACKAGE_LIST not in content and content.count(REPLACEMENT) == 1:
+    raise SystemExit(0)
+
+if content.count(PACKAGE_LIST) != 1:
+    raise SystemExit(
+        f"expected exactly one {PACKAGE_LIST!r} in {path}, "
+        f"found {content.count(PACKAGE_LIST)}: the core layout changed"
+    )
+
+if len(REPLACEMENT) != len(PACKAGE_LIST):
+    raise SystemExit("the replacement must preserve the string length")
+
+with open(path, "wb") as handle:
+    handle.write(content.replace(PACKAGE_LIST, REPLACEMENT))
+PY
+fi
+
 # tauri-build copies `externalBin` entries named with the rust target triple.
 for name in verge-mihomo verge-mihomo-alpha; do
-  install -m 755 "$CORE_CACHE" "$SIDECAR_DIR/${name}-aarch64-linux-android"
+  install -m 755 "$CORE_ANDROID" "$SIDECAR_DIR/${name}-aarch64-linux-android"
 done
 
 # ------------------------------------------------------------- geo databases
@@ -61,8 +101,17 @@ if [ -d "$ANDROID_APP" ]; then
   for abi in arm64-v8a; do
     mkdir -p "$ANDROID_APP/jniLibs/$abi"
     for name in verge-mihomo verge-mihomo-alpha; do
-      install -m 755 "$CORE_CACHE" "$ANDROID_APP/jniLibs/$abi/lib${name}.so"
+      install -m 755 "$CORE_ANDROID" "$ANDROID_APP/jniLibs/$abi/lib${name}.so"
     done
+  done
+
+  # `gen/android` is generated and gitignored, so the Kotlin side of the port is
+  # vendored here and reinstalled on every prepare.
+  echo "==> Installing the Android VPN sources"
+  JAVA_DIR="$ANDROID_APP/java/io/github/clashverge/rev"
+  mkdir -p "$JAVA_DIR"
+  for name in MainActivity VpnTunService; do
+    install -m 644 "scripts/android/templates/${name}.kt" "$JAVA_DIR/${name}.kt"
   done
 
   MANIFEST="$ANDROID_APP/AndroidManifest.xml"
@@ -118,6 +167,45 @@ content, count = re.subn(
 )
 if count == 0:
     raise SystemExit(f"no <application> tag found in {path}")
+
+with open(path, "w") as handle:
+    handle.write(content)
+PY
+  fi
+
+  if ! grep -q 'VpnTunService' "$MANIFEST"; then
+    echo "==> Declaring VpnTunService in the manifest"
+    python3 - "$MANIFEST" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+with open(path) as handle:
+    content = handle.read()
+
+vpn_permissions = """    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+"""
+
+vpn_service = """        <service
+            android:name=".VpnTunService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="VPN proxy interception service for Mihomo core" />
+        </service>
+"""
+
+content = content.replace('<uses-permission android:name="android.permission.INTERNET" />',
+                          '<uses-permission android:name="android.permission.INTERNET" />\n' + vpn_permissions)
+
+content = re.sub(r'(<activity\b)', vpn_service + r'\1', content, count=1)
 
 with open(path, "w") as handle:
     handle.write(content)
