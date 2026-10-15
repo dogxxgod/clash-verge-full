@@ -63,9 +63,12 @@ impl RunState {
         self.service_ready() && !self.op_in_flight
     }
 
+    /// Mobile never reaches TUN through the privileged Service: Android gets a tunnel descriptor
+    /// from VpnService, and iOS has no TUN integration yet.
     #[must_use]
     pub const fn tun_capable(&self) -> bool {
-        cfg!(target_os = "android") || self.is_admin || self.service_usable()
+        cfg!(target_os = "android")
+            || (!cfg!(any(target_os = "android", target_os = "ios")) && (self.is_admin || self.service_usable()))
     }
 
     /// In-flight, absent, and accepted-Sidecar states require no user decision.

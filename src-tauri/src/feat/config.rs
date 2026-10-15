@@ -18,6 +18,13 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
 ///
 /// TUN patches do not always produce a Run State transition, so reconciliation is explicit.
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
+    // iOS cannot execute a sidecar and has no Network Extension tunnel yet, so the Core would get a
+    // TUN config it cannot satisfy: refuse the toggle here instead of degrading to the desktop path.
+    #[cfg(target_os = "ios")]
+    if patch.enable_tun_mode == Some(true) {
+        anyhow::bail!("TUN mode is not supported on iOS: the Network Extension integration is not implemented");
+    }
+
     #[cfg(target_os = "android")]
     {
         if let Some(enable) = patch.enable_tun_mode {

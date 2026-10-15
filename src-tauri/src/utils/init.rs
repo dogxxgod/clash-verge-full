@@ -619,8 +619,8 @@ pub const fn init_scheme() -> Result<()> {
     Ok(())
 }
 
-/// Deep links are declared as intent filters in the Android manifest.
-#[cfg(target_os = "android")]
+/// Mobile deep links are declared in the platform manifests: Android intent filters, iOS Info.plist.
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub const fn init_scheme() -> Result<()> {
     Ok(())
 }

@@ -173,8 +173,8 @@ pub fn core_sidecar_binary_path(_core: &str) -> Result<PathBuf> {
     Err(anyhow::anyhow!("packaged core binaries are not supported on this platform"))
 }
 
-/// Android has no privileged helper service.
-#[cfg(target_os = "android")]
+/// Mobile platforms have no privileged helper service.
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub fn service_path() -> Result<PathBuf> {
     Err(anyhow::anyhow!("a privileged helper service is not supported on this platform"))
 }
@@ -296,9 +296,9 @@ fn sidecar_ipc_path_for(_app_root: &std::path::Path, identity: &clash_verge_serv
     PathBuf::from(sidecar_pipe_name(identity, cfg!(feature = "verge-dev")))
 }
 
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 fn sidecar_ipc_path_for(app_root: &std::path::Path, _identity: &clash_verge_service_ipc::OwnerIdentity) -> PathBuf {
-    // `sockaddr_un` is fine with the app data dir length on Android (well under 104 bytes).
+    // `sockaddr_un` is fine with the app data dir length on mobile (well under 104 bytes).
     app_root.join("verge-mihomo.sock")
 }
 

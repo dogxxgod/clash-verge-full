@@ -343,8 +343,8 @@ pub(crate) fn trusted_service_evidence() -> Result<bool> {
     macos_service_install_marker_exists().context("failed to inspect launchd service registration")
 }
 
-/// Android ships no privileged helper as part of this app.
-#[cfg(target_os = "android")]
+/// Mobile platforms ship no privileged helper as part of this app.
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub(crate) const fn trusted_service_evidence() -> Result<bool> {
     Ok(false)
 }
@@ -690,7 +690,8 @@ fn linux_running_as_root() -> bool {
     is_current_app_handle_admin(app_handle)
 }
 
-#[cfg(target_os = "android")]
+/// Mobile platforms ship no privileged helper service to uninstall.
+#[cfg(any(target_os = "android", target_os = "ios"))]
 fn uninstall_service() -> Result<()> {
     bail!("a privileged helper service is not supported on this platform");
 }

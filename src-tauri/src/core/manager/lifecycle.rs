@@ -821,7 +821,8 @@ impl CoreManager {
         #[cfg(target_os = "windows")]
         self.wait_for_service_if_needed().await;
 
-        let service_required = !cfg!(target_os = "android") && Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
+        // Only desktop reaches TUN through the privileged Service; mobile never installs one.
+        let service_required = cfg!(desktop) && Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
         if service_required
             && matches!(SERVICE_MANAGER.current().await, ServiceStatus::NotInstalled)
             && SERVICE_MANAGER.require_install_for_session().is_err()

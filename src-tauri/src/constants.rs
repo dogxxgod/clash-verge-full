@@ -61,9 +61,10 @@ pub mod files {
 }
 
 pub mod tun {
-    #[cfg(target_os = "android")]
+    /// Mobile receives its tunnel from the platform, so the core runs its userspace stack.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub const DEFAULT_STACK: &str = "gvisor";
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub const DEFAULT_STACK: &str = "mips";
 
     pub const DNS_HIJACK: &[&str] = &["any:53"];
