@@ -40,6 +40,18 @@
 - **Geo 数据库随包分发**：Android 上应用资源无法作为普通文件读取，geo 数据在编译期嵌入二进制并在首次启动释放到应用目录。
 - 应用内更新不可用（升级需重新安装 APK）。
 - `packages.xml` 补丁依赖内核中该字符串的出现次数，`prepare.sh` 在次数不为 1 时会显式报错，内核升级后需重新确认。
+- 日志中出现 `create watcher for packages list: fswatch: watch ... permission denied` 是该补丁的预期副作用：SELinux 不允许普通应用监视该文件，读取本身正常，随后 TUN 监听照常启动。
+
+## 排查记录
+
+### 连接页恒为空
+
+症状是连接页一直显示 `ACTIVE 0` 与 `0.00B`，但流量确实在转发。目前已知两个不同根因，症状完全相同：
+
+1. **打包器覆盖绑定名**：入口 chunk 里 `MihomoWebSocket` 与一处无关的内部对象被压缩成了同一个变量名，所有 `connect_*` 都落到错误对象上，异常又被各 supervisor 的重连逻辑吞掉。修复见 `vite.config.mts` 的 `manualChunks`（把 `tauri-plugin-mihomo-api` 拆成独立 chunk）。
+2. **移动端可见性判断**：`plugin:window|is_visible` 在 Android 上恒为 `false`（tao 在 Android 上忽略 `Window::is_visible`，logcat 中有对应告警），而 `useVisibility` 把它和 `document.visibilityState` 做了与运算，`pageVisible` 因此恒为 false，连接页与流量监控根本不建立订阅。修复见 `src/hooks/use-visibility.ts`（移动端跳过窗口探测，只采信 WebView 自身的可见性）。
+
+诊断顺序：先用 `plugin:mihomo|get_connections` 与 `plugin:mihomo|ws_connections` 判断后端与通道是否正常，再查 `pageVisible` 的实际取值。用控制台点击复现时**不要派发 `pointerdown`**，否则会被 `handlePointerDown` 里的 `setVisible(true)` 掩盖问题。
 
 ## 构建
 
