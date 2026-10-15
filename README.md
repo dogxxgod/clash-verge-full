@@ -1,141 +1,113 @@
-<h1 align="center">
-  <img src="./src-tauri/icons/icon.png" alt="Clash" width="128" />
-  <br>
-  Continuation of <a href="https://github.com/zzzgydi/clash-verge">Clash Verge</a>
-  <br>
-</h1>
+# clash-verge-full
 
-<h3 align="center">
-A Clash Meta GUI based on <a href="https://github.com/tauri-apps/tauri">Tauri</a>.
-</h3>
+把 [clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev)（面向桌面的 Tauri v2 Clash GUI）
+移植到**移动端**的项目：**Android 已可用，iOS 进行中**。
 
-<p align="center">
-  Languages:
-  <a href="./docs/README_en.md">English</a> ·
-  <a href="./docs/README_es.md">Español</a> ·
-  <a href="./docs/README_fa.md">فارسی</a> ·
-  <a href="./docs/README_ja.md">日本語</a> ·
-  <a href="./docs/README_ko.md">한국어</a> ·
-  <a href="./docs/README_pt.md">Português</a> ·
-  <a href="./docs/README_ru.md">Русский</a> ·
-  <a href="./README.md">简体中文</a>
-</p>
+上游不支持 Android / iOS。本仓库在尽量不破坏桌面代码的前提下，用
+「桌面/移动 cfg 门控 + 移动端同接口空实现」的方式增加移动端支持。
 
-## Preview
-
-| Dark                             | Light                             |
-| -------------------------------- | --------------------------------- |
-| ![预览](./docs/preview_dark.png) | ![预览](./docs/preview_light.png) |
-
-## Install
-
-请到发布页面下载对应的安装包：[Release page](https://github.com/clash-verge-rev/clash-verge-rev/releases)<br>
-Go to the [Release page](https://github.com/clash-verge-rev/clash-verge-rev/releases) to download the corresponding installation package<br>
-Supports Windows (x64/x86), Linux (x64/arm64) and macOS 11+ (intel/apple).
-支持 Windows (x64/x86)、Linux (x64/arm64) 和 macOS 11+ (intel/apple)。
-
-#### 我应当怎样选择发行版
-
-| 版本        | 特征                                     | 链接                                                                                   |
-| :---------- | :--------------------------------------- | :------------------------------------------------------------------------------------- |
-| Stable      | 正式版，高可靠性，适合日常使用。         | [Release](https://github.com/clash-verge-rev/clash-verge-rev/releases)                 |
-| Alpha(废弃) | 测试发布流程。                           | [Alpha](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/alpha)         |
-| AutoBuild   | 滚动更新版，适合测试反馈，可能存在缺陷。 | [AutoBuild](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/autobuild) |
-
-#### 安装说明和常见问题，请到 [文档页](https://clash-verge-rev.github.io/) 查看
-
-### TG 频道: [@clash_verge_rev](https://t.me/clash_verge_re)
+> 本仓库早期是上游的 fork，现已独立管理（私有），开发集中在 `main` 一条分支上。
+>
+> `docs/README_*.md`、`docs/preview_*.png` 等是**上游项目**的多语言文档与截图，与本移植无关，
+> 保留仅为减少与上游 diff。
 
 ---
 
-## Promotion
+## 移植状态
 
-### ✈️ [AI云边 -- 全新架构机场 ClaudeBorder](https://cruise.54678999.xyz/#/register?code=58q5UJZc)
+| 平台 | 状态 |
+| --- | --- |
+| **Android 16（arm64-v8a）** | ✅ 可用。VpnService(TUN) 全局代理已在 Android 16 模拟器上端到端验证 |
+| **iOS（目标 iPhone 12 Pro / iOS 18）** | 🚧 源码级适配已完成（配置、门控、UI、文档）；**TUN 与 Network Extension 尚未实现**，整机编译验证进行中 |
 
-🔥热销中使用本链接注册即送 **3 天免费试用**，每日 **1GB 流量**：👉 [点此注册](https://cruise.54678999.xyz/#/register?code=58q5UJZc)
+## Android 已实现
 
-#### AI云边 -- 全新架构机场。
+- **VpnService(TUN) 全局代理**：`VpnService` 建立隧道并 `detachFd()`，清除 `FD_CLOEXEC` 后经 JNI 把描述符
+  交给内核的 `tun.file-descriptor`；自身包名加入 `addDisallowedApplication`，内核出站连接直接走物理网卡。
+  其它 App **无需任何代理设置**即可被内核分流。关闭 TUN 时重启内核以释放描述符与监听。
+- **内核以共享库形式运行**：Android 禁止执行应用数据目录中的文件（W^X），因此 mihomo 以
+  `libverge-mihomo.so` 打进 `jniLibs`，由系统解压到 `nativeLibraryDir` 后启动；
+  内核在非 root 沙箱下读取系统包列表失败的问题已在构建脚本中处理。
+- **Geo 数据随包分发**：移动端资源不能作为普通文件读取，geo 数据在编译期嵌入二进制、首次启动释放到应用目录。
+- **移动端界面**：窄屏底部标签栏、刘海/手势条安全区、44pt 触控下限，并按平台隐藏桌面专属控件
+  （窗口控制按钮、标题栏拖拽区、右键菜单、"优先使用系统标题栏"开关等）。
+- **构建可复现**：`gen/android` 被 gitignore，Kotlin 源码与内核补丁都由脚本复原，克隆后一条命令即可还原构建输入。
+- **Release 签名 APK**：arm64-v8a，`minSdk 24 / targetSdk 36`，约 141 MB。
 
-- 💻 多次**技术迭代后**全新亮相。
-- 🗺 全**高速稳定**正价节点。
-- 🌏 **海外团队**，不跑路
-- 🚀 线路**冗余**设计，**自动化运维**对抗各类封锁
-- 👨‍🦲 团队架构师为**大厂**网络架构师
-- 💰 极致**稳定**，亲民价**价格**
-- 🌐 全面支持**流媒体及各AI访问**
-- 🙋 7*12小时真人客服。解决您的各类问题。
+## iOS 现状
 
-🌐 官网：👉 [https://www.claudeborder.com](https://cruise.54678999.xyz/#/register?code=58q5UJZc)
+源码层面已就绪：`#[cfg(target_os = "ios")]` 的平台门控补齐、`tauri.ios.conf.json`、
+iPhone 12 Pro 的 UI 适配，以及记录架构与前置条件的 [`docs/IOS.md`](docs/IOS.md)。
 
-### 🤖 [GPTKefu —— 与 Crisp 深度整合的 AI 智能客服平台](https://gptkefu.com)
+**TUN 尚未实现**，原因是 iOS 与 Android 的机制根本不同，见下表。要补齐需要：
+把 mihomo 编译成可链接库（上游不发布 iOS 产物）、新增 Network Extension 扩展 target 与 entitlement、
+App Group，并重新划分「谁生成配置、谁调用内核 API」。
 
-- 🧠 深度理解完整对话上下文 + 图片识别，自动给出专业、精准的回复，告别机械式客服。
-- ♾️ **不限回答数量**，无额度焦虑，区别于其他按条计费的 AI 客服产品。
-- 💬 售前咨询、售后服务、复杂问题解答，全场景轻松覆盖，真实用户案例已验证效果。
-- ⚡ 3 分钟极速接入，零门槛上手，即刻提升客服效率与客户满意度。
-- 🎁 高级套餐免费试用 14 天，先体验后付费：👉 [立即试用](https://gptkefu.com)
-- 📢 智能客服TG 频道：[@crisp_ai](https://t.me/crisp_ai)
+| | Android | iOS |
+| --- | --- | --- |
+| 隧道 | `VpnService` 拿到 fd | 只有 Network Extension 的 `packetFlow` |
+| 内核形态 | 独立进程（sidecar） | **必须**链进扩展进程，不能是独立进程 |
+| 数据交接 | `detachFd()` → JNI → `tun.file-descriptor` | 扩展内直接读写数据包（无公开 fd 可用） |
+| 前置门槛 | 应用权限 + 用户授权 VPN | 付费 Apple Developer 账号 + NE entitlement |
 
----
+## 文档
 
-## Features
+| 文档 | 内容 |
+| --- | --- |
+| [`docs/ANDROID.md`](docs/ANDROID.md) | Android 移植要点、构建步骤、TUN 调用链、排查记录 |
+| [`docs/IOS.md`](docs/IOS.md) | iOS 架构方案、前置条件、构建路径与**当前验证边界** |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 上游贡献规范（沿用） |
+| [`PRIVACY.md`](PRIVACY.md) | 隐私说明（不收集用户数据，配置与日志仅存本地） |
 
-- 基于性能强劲的 Rust 和 Tauri 2 框架
-- 内置[Clash.Meta(mihomo)](https://github.com/MetaCubeX/mihomo)内核，并支持切换 `Alpha` 版本内核。
-- 简洁美观的用户界面，支持自定义主题颜色、代理组/托盘图标以及 `CSS Injection`。
-- 配置文件管理和增强（Merge 和 Script），配置文件语法提示。
-- 系统代理和守卫、`TUN(虚拟网卡)` 模式。
-- 可视化节点和规则编辑
-- WebDav 配置备份和同步
+## 分支与上游同步
 
-### FAQ
+只有一条开发分支：
 
-Refer to [Doc FAQ Page](https://clash-verge-rev.github.io/faq/windows.html)
+| 分支 | 用途 |
+| --- | --- |
+| `main` | 唯一分支，包含上游历史 + 全部移植成果 |
 
-### Donation
+需要跟进上游新版本时，从上游 remote 拉取后合并到 `main`：
 
-[捐助Clash Verge Rev的开发](https://github.com/sponsors/clash-verge-rev)
-
-## Development
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for more details.
-
-To run the development server, execute the following commands after all prerequisites for **Tauri** are installed:
-
-```shell
-pnpm i
-pnpm run prebuild
-pnpm dev
+```bash
+git fetch upstream
+git merge upstream/dev          # 或 upstream/main，视上游当前主线而定
 ```
 
-`pnpm dev` preserves the Development Channel's installed service state: an
-existing service is used, while a previously uninstalled service remains
-uninstalled and the app starts in Sidecar mode. Use `pnpm dev:service` to
-explicitly install or update the isolated development service before launch,
-or `pnpm dev:sidecar` to force the unprivileged Sidecar workflow.
+## 构建
 
-## Contributions
+### Android（在 Linux 容器内构建）
 
-Issue and PR welcome!
+```bash
+# 1) 还原 Android 构建输入：内核（含非 root 补丁）、Kotlin 源码、gradle/manifest 补丁
+bash scripts/android/prepare.sh
 
-## Acknowledgement
+# 2) 打包（会先跑前端 tsc --noEmit）
+CI=true CARGO_BUILD_JOBS=6 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_DEV_STRIP=debuginfo \
+  pnpm tauri android build --apk --debug --target aarch64
+```
 
-Clash Verge rev was based on or inspired by these projects and so on:
+产物：`src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`。
+完整的容器环境、签名与模拟器验证流程见 [`docs/ANDROID.md`](docs/ANDROID.md)。
 
-- [zzzgydi/clash-verge](https://github.com/zzzgydi/clash-verge): A Clash GUI based on tauri. Supports Windows, macOS and Linux.
-- [tauri-apps/tauri](https://github.com/tauri-apps/tauri): Build smaller, faster, and more secure desktop applications with a web frontend.
-- [Dreamacro/clash](https://github.com/Dreamacro/clash): A rule-based tunnel in Go.
-- [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo): A rule-based tunnel in Go.
-- [Fndroid/clash_for_windows_pkg](https://github.com/Fndroid/clash_for_windows_pkg): A Windows/macOS GUI based on Clash.
-- [vitejs/vite](https://github.com/vitejs/vite): Next generation frontend tooling. It's fast!
+### iOS（需要 macOS + Xcode）
 
-## Privacy
+前置条件、`tauri ios init`、内核库编译方式与尚未打通的部分，见 [`docs/IOS.md`](docs/IOS.md)。
 
-Clash Verge Rev 不收集任何用户数据，配置与日志仅保存在本地。详见[隐私政策](./PRIVACY.md)。
+## 已知限制
 
-Clash Verge Rev does not collect any user data; configuration and logs stay on
-your own device. See the [Privacy Policy](./PRIVACY.md) for details.
+- **仅 arm64-v8a**，未构建其它 ABI。
+- **Android 真机未验证**：现有结论来自 Android 16 模拟器（OPPO Find X8 规格），真机复核待做。
+- **iOS 的 TUN 未实现**；Network Extension、签名与模拟器验证均未完成。
+- 应用内更新不可用（移动端为同接口空实现）。
+- 移动端没有可写的系统代理，桌面那套「系统代理」开关在移动端仅反映配置状态。
 
-## License
+## 许可与致谢
 
-GPL-3.0 License. See [License here](./LICENSE) for details.
+沿用上游的 **GPL-3.0** 许可（见 [`LICENSE`](LICENSE)）。本项目的代码与设计来自：
+
+- [clash-verge-rev/clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev) — 本项目的基础
+- [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) — 内核
+- [tauri-apps/tauri](https://github.com/tauri-apps/tauri) — 应用框架
+
+感谢上述项目及其贡献者。
