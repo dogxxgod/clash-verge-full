@@ -50,6 +50,16 @@ split-debuginfo = "unpacked"
 # Backport Windows menu command ID recycling on the muda 0.20 compatibility branch.
 muda = { git = "https://github.com/wonfen/muda.git", rev = "547de49352791653fbdfa785f20f3c7ece8468e2" }
 
+# num_threads 0.1.7 calls `libc::mach_task_self()`, which libc gates to macOS, so the iOS
+# build of `time`'s local-offset feature (pulled in by boa_engine) fails to compile. The Mach
+# trap variable itself exists on iOS; the vendored copy declares it directly.
+num_threads = { path = "vendor/num_threads" }
+
+# Same class of breakage in sysinfo 0.39.6: it uses `libc::mach_task_self`/`mach_host_self`
+# and `libc::RTM_IFINFO2`, none of which libc 0.2.190 exports for iOS. Downgrading libc is not
+# an option (kode-bridge requires >= 0.2.190), so the vendored copy declares them itself.
+sysinfo = { path = "vendor/sysinfo" }
+
 # The upstream crate references a macOS/Linux-only path variable without an Android arm.
 [patch."https://github.com/clash-verge-rev/clash-verge-service-ipc.git"]
 clash_verge_service_ipc = { path = "vendor/clash-verge-service-ipc" }
