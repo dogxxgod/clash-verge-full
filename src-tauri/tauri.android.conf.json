@@ -1,6 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "identifier": "io.github.clashverge.rev",
+  "version": "2.6.0",
   "bundle": {
     "resources": []
   },
