@@ -507,40 +507,66 @@ pub async fn init_config() -> Result<()> {
 /// Initializes application resources after Tauri setup.
 pub async fn init_resources() -> Result<()> {
     let app_dir = dirs::app_home_dir()?;
-    let res_dir = dirs::app_resources_dir()?;
 
     if !app_dir.exists() {
         std::mem::drop(fs::create_dir_all(&app_dir).await);
     }
-    if !res_dir.exists() {
-        std::mem::drop(fs::create_dir_all(&res_dir).await);
-    }
 
-    let file_list = ["Country.mmdb", "ASN.mmdb", "geoip.dat", "geosite.dat"];
+    #[cfg(target_os = "android")]
+    {
+        // On Android, resources are compiled directly into the binary or extracted into app_dir
+        // Country.mmdb / GeoIP / GeoSite data
+        let geo_files: &[(&str, &[u8])] = &[
+            ("Country.mmdb", include_bytes!("../../resources/Country.mmdb")),
+            ("geosite.dat", include_bytes!("../../resources/geosite.dat")),
+            ("geoip.dat", include_bytes!("../../resources/geoip.dat")),
+            ("ASN.mmdb", include_bytes!("../../resources/ASN.mmdb")),
+        ];
 
-    for file in file_list.iter() {
-        let src_path = res_dir.join(file);
-        let dest_path = app_dir.join(file);
-
-        if src_path.exists() && !dest_path.exists() {
-            handle_copy(&src_path, &dest_path, file).await;
-            continue;
-        }
-
-        let src_modified = fs::metadata(&src_path).await.and_then(|m| m.modified());
-        let dest_modified = fs::metadata(&dest_path).await.and_then(|m| m.modified());
-
-        match (src_modified, dest_modified) {
-            (Ok(src_modified), Ok(dest_modified)) => {
-                if src_modified > dest_modified {
-                    handle_copy(&src_path, &dest_path, file).await;
+        for (name, data) in geo_files {
+            let dest_path = app_dir.join(name);
+            if !dest_path.exists() {
+                logging!(info, Type::Setup, "extracting embedded geo resource '{}' to app dir", name);
+                if let Err(e) = fs::write(&dest_path, data).await {
+                    logging!(error, Type::Setup, "failed to write embedded resource '{}': {e}", name);
                 }
             }
-            _ => {
-                logging!(debug, Type::Setup, "failed to get modified '{}'", file);
+        }
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let res_dir = dirs::app_resources_dir()?;
+        if !res_dir.exists() {
+            std::mem::drop(fs::create_dir_all(&res_dir).await);
+        }
+
+        let file_list = ["Country.mmdb", "ASN.mmdb", "geoip.dat", "geosite.dat"];
+
+        for file in file_list.iter() {
+            let src_path = res_dir.join(file);
+            let dest_path = app_dir.join(file);
+
+            if src_path.exists() && !dest_path.exists() {
                 handle_copy(&src_path, &dest_path, file).await;
+                continue;
             }
-        };
+
+            let src_modified = fs::metadata(&src_path).await.and_then(|m| m.modified());
+            let dest_modified = fs::metadata(&dest_path).await.and_then(|m| m.modified());
+
+            match (src_modified, dest_modified) {
+                (Ok(src_modified), Ok(dest_modified)) => {
+                    if src_modified > dest_modified {
+                        handle_copy(&src_path, &dest_path, file).await;
+                    }
+                }
+                _ => {
+                    logging!(debug, Type::Setup, "failed to get modified '{}'", file);
+                    handle_copy(&src_path, &dest_path, file).await;
+                }
+            };
+        }
     }
 
     Ok(())

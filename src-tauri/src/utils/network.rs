@@ -44,9 +44,22 @@ pub enum ProxyType {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum TlsRootMode {
+pub(crate) enum TlsRootMode {
     PlatformVerifier,
     StaticWebpkiRoots,
+}
+
+/// The trust anchors a request starts with.
+///
+/// Android's platform verifier is unusable here: it panics during the handshake unless the app
+/// ships rustls-platform-verifier's Kotlin component, and a panic inside the connector leaves the
+/// caller's future pending forever. Bundled Mozilla roots work on every target instead.
+pub(crate) const fn default_tls_root_mode() -> TlsRootMode {
+    if cfg!(target_os = "android") {
+        TlsRootMode::StaticWebpkiRoots
+    } else {
+        TlsRootMode::PlatformVerifier
+    }
 }
 
 pub struct NetworkManager;
@@ -54,6 +67,20 @@ pub struct NetworkManager;
 impl NetworkManager {
     pub const fn new() -> Self {
         Self
+    }
+
+    /// A client that trusts the bundled roots, for callers that own their own request flow.
+    pub(crate) fn build_bundled_roots_client(
+        timeout_secs: Option<u64>,
+        accept_invalid_certs: bool,
+    ) -> Result<Client> {
+        Self::new().build_client(
+            None,
+            HeaderMap::new(),
+            accept_invalid_certs,
+            timeout_secs,
+            TlsRootMode::StaticWebpkiRoots,
+        )
     }
 
     fn build_client(
@@ -280,14 +307,19 @@ impl NetworkManager {
                 timeout_secs,
                 user_agent.clone(),
                 accept_invalid_certs,
-                TlsRootMode::PlatformVerifier,
+                default_tls_root_mode(),
             )
             .await;
 
         match platform_result {
             Ok(response) => Ok(response),
-            Err(err) if !accept_invalid_certs && Self::should_retry_with_static_webpki_roots(&err) => self
-                .get_with_tls_mode(
+            // Only reachable where the request started from a verified platform store.
+            Err(err)
+                if matches!(default_tls_root_mode(), TlsRootMode::PlatformVerifier)
+                    && !accept_invalid_certs
+                    && Self::should_retry_with_static_webpki_roots(&err) =>
+            {
+                self.get_with_tls_mode(
                     url,
                     proxy_type,
                     timeout_secs,
@@ -298,7 +330,8 @@ impl NetworkManager {
                 .await
                 .map_err(|fallback_err| {
                     fallback_err.context("static webpki roots fallback failed after platform TLS verifier failed")
-                }),
+                })
+            }
             Err(err) => Err(err),
         }
     }
@@ -350,17 +383,21 @@ impl NetworkManager {
         max_bytes: usize,
     ) -> Result<Vec<u8>> {
         let platform_result = self
-            .get_bytes_with_tls_mode(url, proxy_type, timeout_secs, max_bytes, TlsRootMode::PlatformVerifier)
+            .get_bytes_with_tls_mode(url, proxy_type, timeout_secs, max_bytes, default_tls_root_mode())
             .await;
 
         match platform_result {
             Ok(body) => Ok(body),
-            Err(err) if Self::should_retry_with_static_webpki_roots(&err) => self
-                .get_bytes_with_tls_mode(url, proxy_type, timeout_secs, max_bytes, TlsRootMode::StaticWebpkiRoots)
-                .await
-                .map_err(|fallback_err| {
-                    fallback_err.context("static webpki roots fallback failed after platform TLS verifier failed")
-                }),
+            Err(err)
+                if matches!(default_tls_root_mode(), TlsRootMode::PlatformVerifier)
+                    && Self::should_retry_with_static_webpki_roots(&err) =>
+            {
+                self.get_bytes_with_tls_mode(url, proxy_type, timeout_secs, max_bytes, TlsRootMode::StaticWebpkiRoots)
+                    .await
+                    .map_err(|fallback_err| {
+                        fallback_err.context("static webpki roots fallback failed after platform TLS verifier failed")
+                    })
+            }
             Err(err) => Err(err),
         }
     }

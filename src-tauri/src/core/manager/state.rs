@@ -199,7 +199,10 @@ impl CoreManager {
             .sidecar(clash_core.as_str())
             .map_err(|error| anyhow::anyhow!("failed to build sidecar command for core {clash_core:?}: {error:#}"))?;
         #[cfg(mobile)]
-        let command = app_handle.shell().command(dirs::core_sidecar_binary_path(clash_core.as_str())?);
+        let command = {
+            let _ = std::fs::remove_file(&sidecar_ipc);
+            app_handle.shell().command(dirs::core_sidecar_binary_path(clash_core.as_str())?)
+        };
         let command = command.args([
             "-d",
             dirs::path_to_str(&config_dir)?,

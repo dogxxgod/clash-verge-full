@@ -15,10 +15,22 @@ use tauri_plugin_clash_verge_sysinfo;
 pub async fn get_sys_proxy() -> CmdResult<SystemProxy> {
     #[cfg(mobile)]
     {
-        // Android/iOS expose no per-app system proxy; report it as disabled.
+        // Android/iOS expose no per-app system proxy, so nothing on the OS can be observed. Report
+        // the requested state instead: a switch that snaps back after a write that did land reads
+        // as broken, and the mixed port it points at is the one the core really listens on.
+        let enabled = crate::config::Config::verge()
+            .await
+            .latest_arc()
+            .enable_system_proxy
+            .unwrap_or(false);
+        let port = crate::config::MixedPort::desired().await;
         Ok(SystemProxy {
-            enable: false,
-            server: std::string::String::new(),
+            enable: enabled,
+            server: if enabled {
+                format!("127.0.0.1:{port}")
+            } else {
+                std::string::String::new()
+            },
             bypass: std::string::String::new(),
         })
     }
@@ -50,9 +62,20 @@ pub async fn get_sys_proxy() -> CmdResult<SystemProxy> {
 pub async fn get_auto_proxy() -> CmdResult<AutoProxy> {
     #[cfg(mobile)]
     {
+        // Mirrors `get_sys_proxy`: with no OS state to read, the configured PAC endpoint is the
+        // only truth the settings switch can show.
+        let verge = crate::config::Config::verge().await.latest_arc();
+        let enabled = verge.proxy_auto_config.unwrap_or(false);
+        let host = verge.proxy_host.clone().unwrap_or_else(|| "127.0.0.1".into());
+        let port = crate::utils::server::embedded_server_port().stringify_err()?;
+
         Ok(AutoProxy {
-            enable: false,
-            url: std::string::String::new(),
+            enable: enabled,
+            url: if enabled {
+                format!("http://{host}:{port}/commands/pac")
+            } else {
+                std::string::String::new()
+            },
         })
     }
     #[cfg(desktop)]
