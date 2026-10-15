@@ -1,0 +1,19 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "identifier": "io.github.clashverge.rev",
+  "bundle": {
+    "externalBin": [],
+    "iOS": {
+      "minimumSystemVersion": "18.0"
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Clash Verge",
+        "visible": true
+      }
+    ]
+  }
+}
