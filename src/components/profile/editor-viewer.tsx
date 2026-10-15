@@ -25,8 +25,12 @@ import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance, MonacoMarker } from '@/types/monaco'
 import debounce from '@/utils/debounce'
 import { MONACO_FONT_FAMILY } from '@/utils/font-family'
+import getSystem from '@/utils/get-system'
 
 const appWindow = getCurrentWebviewWindow()
+
+// `toggle_maximize` is a desktop-only command, so mobile has no maximize state.
+const isMobileOS = ['android', 'ios'].includes(getSystem())
 
 type EditorLanguage = 'yaml' | 'javascript' | 'css'
 
@@ -286,18 +290,22 @@ export const EditorViewer = ({
           >
             <FormatPaintRounded fontSize="inherit" />
           </IconButton>
-          <IconButton
-            size="medium"
-            color="inherit"
-            title={t(
-              isMaximized ? 'shared.window.minimize' : 'shared.window.maximize',
-            )}
-            onClick={() => {
-              void handleToggleMaximize()
-            }}
-          >
-            {isMaximized ? <CloseFullscreenRounded /> : <OpenInFullRounded />}
-          </IconButton>
+          {!isMobileOS && (
+            <IconButton
+              size="medium"
+              color="inherit"
+              title={t(
+                isMaximized
+                  ? 'shared.window.minimize'
+                  : 'shared.window.maximize',
+              )}
+              onClick={() => {
+                void handleToggleMaximize()
+              }}
+            >
+              {isMaximized ? <CloseFullscreenRounded /> : <OpenInFullRounded />}
+            </IconButton>
+          )}
         </ButtonGroup>
       </DialogContent>
 

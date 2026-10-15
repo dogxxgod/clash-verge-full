@@ -1,4 +1,3 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { PendingFailure } from '@/services/cmds'
@@ -7,27 +6,13 @@ import {
   usePendingFailureList,
   useSidecarFailure,
 } from '@/store/app-store-context'
+import { isWindowWatched } from '@/utils/window-visibility'
 
 /** Failures handled by the recovery dialog instead of a toast. */
 const CODES_SHOWN_AS_A_DIALOG = new Set<string>([
   'SYSPROXY_PRIVILEGE_REQUIRED',
   'SYSPROXY_SIDECAR_WHILE_SERVICE_READY',
 ])
-
-/** Return whether a native window is visible and not minimized; fail closed. */
-const windowIsWatched = async () => {
-  const window = getCurrentWindow()
-  try {
-    const [visible, minimized] = await Promise.all([
-      window.isVisible(),
-      window.isMinimized(),
-    ])
-    return visible && !minimized
-  } catch (error) {
-    console.warn('[pending-failures] window state unavailable:', error)
-    return false
-  }
-}
 
 /** Show each pending failure sequence once when the window can be read. */
 export const usePendingFailures = () => {
@@ -45,7 +30,7 @@ export const usePendingFailures = () => {
     )
     if (asToast.length === 0) return
 
-    void windowIsWatched().then((watched) => {
+    void isWindowWatched().then((watched) => {
       if (!watched) return
       for (const failure of asToast) {
         const shown = shownSequencesRef.current.get(failure.code)

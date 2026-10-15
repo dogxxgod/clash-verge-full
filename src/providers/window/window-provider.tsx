@@ -2,8 +2,13 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import debounce from '@/utils/debounce'
+import getSystem from '@/utils/get-system'
 
 import { WindowContext } from './window-context'
+
+// `is_decorated`, `is_maximized` and `set_minimizable` are registered under
+// `#[cfg(desktop)]` in Tauri's window plugin, so mobile must not call them.
+const isMobileOS = ['android', 'ios'].includes(getSystem())
 
 export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -24,6 +29,8 @@ export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [currentWindow])
 
   useEffect(() => {
+    if (isMobileOS) return
+
     let isUnmounted = false
     let lastWidth = -1
     let lastHeight = -1
@@ -78,6 +85,8 @@ export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [currentWindow])
 
   useEffect(() => {
+    if (isMobileOS) return
+
     refreshDecorated()
     currentWindow.setMinimizable?.(true)
   }, [currentWindow, refreshDecorated])

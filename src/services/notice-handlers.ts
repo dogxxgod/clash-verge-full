@@ -1,5 +1,3 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
-
 import {
   getCoreStartupError,
   takeDiscardedKeysNotice,
@@ -11,6 +9,7 @@ import {
 import type { NoticeStatus } from '@/services/contract'
 import { hideNotice, showNotice } from '@/services/notice-service'
 import { requestService } from '@/services/service-request'
+import { isWindowWatched } from '@/utils/window-visibility'
 
 type NavigateFunction = (path: string, options?: any) => void
 type TranslateFunction = (key: string) => string
@@ -66,16 +65,11 @@ export const handleNoticeMessage = (
             shownStartupError = null
             return
           }
-          const window = getCurrentWindow()
-          const [visible, minimized] = await Promise.all([
-            window.isVisible(),
-            window.isMinimized(),
-          ])
+          const watched = await isWindowWatched()
           const shown = `${failure.kind}:${failure.detail}`
           if (
             read === settledStartupErrorRead &&
-            visible &&
-            !minimized &&
+            watched &&
             shownStartupError !== shown
           ) {
             shownStartupError = shown

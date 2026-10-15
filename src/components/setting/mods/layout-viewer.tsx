@@ -30,6 +30,10 @@ import { GuardState } from './guard-state'
 
 const OS = getSystem()
 
+// `is_decorated`/`set_decorations` are registered under `#[cfg(desktop)]` in
+// Tauri's window plugin, so the toggle is only renderable on desktop.
+const isMobileOS = ['android', 'ios'].includes(OS)
+
 const clampHoverDelay = (value: number) => {
   if (!Number.isFinite(value)) {
     return DEFAULT_HOVER_DELAY
@@ -121,24 +125,26 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
       onCancel={() => setOpen(false)}
     >
       <List>
-        <Item>
-          <ListItemText
-            primary={t(
-              'settings.components.verge.layout.fields.preferSystemTitlebar',
-            )}
-          />
-          <GuardState
-            value={decorated}
-            valueProps="checked"
-            onCatch={onError}
-            onFormat={onSwitchFormat}
-            onChange={async () => {
-              await toggleDecorations()
-            }}
-          >
-            <Switch edge="end" />
-          </GuardState>
-        </Item>
+        {!isMobileOS && (
+          <Item>
+            <ListItemText
+              primary={t(
+                'settings.components.verge.layout.fields.preferSystemTitlebar',
+              )}
+            />
+            <GuardState
+              value={decorated}
+              valueProps="checked"
+              onCatch={onError}
+              onFormat={onSwitchFormat}
+              onChange={async () => {
+                await toggleDecorations()
+              }}
+            >
+              <Switch edge="end" />
+            </GuardState>
+          </Item>
+        )}
 
         <Item>
           <ListItemText
