@@ -321,8 +321,8 @@ fn require_no_unix_core_processes(processes: &str, include_service: bool) -> Res
             "clash-verge-service-dev"
         })
         .join("bin/clash-verge-service");
-    // Android ships no privileged helper, so nothing can match the helper names below.
-    #[cfg(target_os = "android")]
+    // Mobile platforms ship no privileged helper, so nothing can match the helper names below.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let other_helper = PathBuf::new();
     // A residual helper outranks a core so the refusal stays repairable in any ps order.
     let mut remaining_core = None;
