@@ -1,6 +1,9 @@
 .layout {
   width: 100%;
   height: 100vh;
+  /* Mobile adds safe-area padding below; without border-box the layout would
+     overflow the viewport by exactly that inset. */
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -197,7 +200,8 @@
 .linux,
 .windows,
 .unknown,
-.android {
+.android,
+.ios {
   &.layout {
     .the_titlebar {
       width: 100%;
@@ -226,6 +230,31 @@
 
     .layout-content__right .the-content {
       top: 5px;
+    }
+  }
+}
+
+/* WKWebView reports safe-area insets in both orientations: in landscape the
+   notch moves to the left/right edge, where the <=600px layout no longer
+   applies. Kept out of the shared mobile block so desktop/Android keep their
+   current insets. */
+.ios {
+  &.layout {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+
+    /* A long press must not reach the desktop right-click handlers. */
+    -webkit-touch-callout: none;
+
+    /* iOS HIG asks for 44pt touch targets; MUI's small controls are ~30pt. */
+    .MuiIconButton-sizeSmall,
+    .MuiCheckbox-root,
+    .MuiRadio-root,
+    .MuiSwitch-root {
+      min-width: 44px;
+      min-height: 44px;
     }
   }
 }
@@ -387,7 +416,9 @@
         height: auto !important;
         border-right: none !important;
         border-top: 1px solid var(--divider-color);
-        padding: 4px 8px env(safe-area-inset-bottom, 4px) 8px !important;
+        /* .layout already reserves the bottom safe area; repeating the inset
+           here would double the Home Indicator gap. */
+        padding: 4px 8px !important;
         flex-direction: row !important;
         align-items: center !important;
         justify-content: space-around !important;
@@ -422,8 +453,9 @@
 
             .MuiListItem-root {
               flex: 1 1 0 !important;
-              min-width: 0 !important;
-              margin: 0 2px !important;
+              /* Every tab stays >= 44pt wide: 8 tabs on a 390pt screen. */
+              min-width: 44px !important;
+              margin: 0 !important;
               padding: 0 !important;
 
               .MuiButtonBase-root {
@@ -432,6 +464,7 @@
                 align-items: center !important;
                 justify-content: center !important;
                 padding: 6px 2px !important;
+                min-width: 44px !important;
                 min-height: 48px !important;
                 border-radius: 8px !important;
 

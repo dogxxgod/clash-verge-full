@@ -9,6 +9,7 @@ import LogoSvg from '@/assets/image/logo.svg?react'
 import { useVerge } from '@/hooks/use-verge'
 import { useNavMenuOrder } from '@/pages/_layout/hooks'
 import { navItems } from '@/pages/_navigation'
+import getSystem from '@/utils/get-system'
 
 import { SortableItem } from '../base'
 
@@ -24,6 +25,10 @@ interface LayoutSidebarProps {
 }
 
 const SENSORS = [PointerSensor, KeyboardSensor]
+
+// Tauri's injected drag-region handler runs on iOS too, but `start_dragging` is
+// a desktop-only command.
+const DRAG_REGION = getSystem() === 'ios' ? undefined : 'true'
 
 export const LayoutSidebar = (props: LayoutSidebarProps) => {
   const { isDark, isCollapsed } = props
@@ -126,7 +131,7 @@ export const LayoutSidebar = (props: LayoutSidebarProps) => {
       {/* Logo */}
       <div className="the-logo" data-tauri-drag-region="false">
         <div
-          data-tauri-drag-region="true"
+          data-tauri-drag-region={DRAG_REGION}
           style={{
             height: '27px',
             display: 'flex',

@@ -49,9 +49,11 @@ const Layout = () => {
   const windowControlsRef = useRef<any>(null)
   const { decorated } = useWindowDecorations()
 
+  // Window decorations and the `is_decorated` command are desktop-only, so iOS
+  // never gets a custom titlebar.
   const customTitlebar = useMemo(
     () =>
-      decorated === false ? (
+      decorated === false && OS !== 'ios' ? (
         <div className="the_titlebar">
           <div
             className="the_titlebar-drag-region"

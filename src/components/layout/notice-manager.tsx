@@ -311,10 +311,24 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
     <Box
       sx={{
         position: 'fixed',
-        top: anchorOrigin.vertical === 'top' ? '20px' : 'auto',
-        bottom: anchorOrigin.vertical === 'bottom' ? '20px' : 'auto',
-        left: anchorOrigin.horizontal === 'left' ? '20px' : 'auto',
-        right: anchorOrigin.horizontal === 'right' ? '20px' : 'auto',
+        // Notices are portaled outside `.layout`, so they carry their own
+        // safe-area offset; env() resolves to 0px on desktop and Android.
+        top:
+          anchorOrigin.vertical === 'top'
+            ? 'calc(20px + env(safe-area-inset-top, 0px))'
+            : 'auto',
+        bottom:
+          anchorOrigin.vertical === 'bottom'
+            ? 'calc(20px + env(safe-area-inset-bottom, 0px))'
+            : 'auto',
+        left:
+          anchorOrigin.horizontal === 'left'
+            ? 'calc(20px + env(safe-area-inset-left, 0px))'
+            : 'auto',
+        right:
+          anchorOrigin.horizontal === 'right'
+            ? 'calc(20px + env(safe-area-inset-right, 0px))'
+            : 'auto',
         zIndex: 1500,
         display: 'flex',
         flexDirection: 'column',

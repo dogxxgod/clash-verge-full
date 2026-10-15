@@ -19,12 +19,17 @@ import {
 import { mutate } from '@/services/mutate'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
+import getSystem from '@/utils/get-system'
 
 const MODES = ['rule', 'global', 'direct'] as const
 type Mode = (typeof MODES)[number]
 const MODE_SET = new Set<string>(MODES)
 const isMode = (value: unknown): value is Mode =>
   typeof value === 'string' && MODE_SET.has(value)
+
+// Tauri's injected drag-region handler runs on iOS too, but `start_dragging` is
+// a desktop-only command.
+const DRAG_REGION = getSystem() === 'ios' ? undefined : 'true'
 
 const ProxyPage = () => {
   const { t } = useTranslation()
@@ -148,7 +153,7 @@ const ProxyPage = () => {
         isChainMode ? (
           <Box
             component="span"
-            data-tauri-drag-region="true"
+            data-tauri-drag-region={DRAG_REGION}
             sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}
           >
             {t('proxies.page.title.chainMode')}
