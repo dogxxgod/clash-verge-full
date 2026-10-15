@@ -4,6 +4,7 @@
   "version": "2.6.0",
   "bundle": {
     "externalBin": [],
+    "createUpdaterArtifacts": false,
     "iOS": {
       "minimumSystemVersion": "18.0"
     }
