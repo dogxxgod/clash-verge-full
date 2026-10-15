@@ -17,8 +17,11 @@
 
 | 平台 | 状态 |
 | --- | --- |
-| **Android 16（arm64-v8a）** | ✅ 可用。VpnService(TUN) 全局代理已在 Android 16 模拟器上端到端验证 |
-| **iOS（目标 iPhone 12 Pro / iOS 18）** | 🚧 源码级适配已完成（配置、门控、UI、文档）；**TUN 与 Network Extension 尚未实现**，整机编译验证进行中 |
+| **Android 16（arm64-v8a）** | ✅ 可用。VpnService(TUN) 全局代理已在 Android 16 模拟器上端到端验证，并已在真机安装试用 |
+| **iOS（目标 iPhone 12 Pro）** | 🚧 进行中。源码级适配已完成（配置、门控、UI、文档）；工具链与前置件已就绪（Xcode 27、Rust + iOS target、iOS 27 模拟器与 iPhone 12 Pro 设备、mihomo iOS 静态库/XCFramework），**首次整机编译尚未跑通**（当前卡在 CocoaPods 所需的 Command Line Tools）；**TUN 与 Network Extension 尚未实现** |
+
+> iOS 侧的内核不再是 sidecar：`scripts/ios/build-core.sh` 把 mihomo 编成可链接库
+> （设备/模拟器两个 arm64 slice + XCFramework），供后续 Network Extension 进程内使用。
 
 ## Android 已实现
 

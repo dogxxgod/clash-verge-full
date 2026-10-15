@@ -132,29 +132,49 @@ iOS 上**第 1、2、4 步都不存在**（`enhance/tun.rs` 没有 iOS 分支，
 
 ## 二、构建路径（从零到首次可运行）
 
-> 以下步骤**全部未验证**（本机没有 Xcode），是按现有代码与配置推导出的顺序，首次执行时每一步都需要据实修正。
+> 本节正在被实测替换：截至 2026-10-16，前置条件已基本就绪并逐条验证过（见下方「实测状态」），
+> 但**整机编译尚未跑通**——卡在 CocoaPods（需先装 Command Line Tools）。未验证的部分仍按推导书写，并明确标注。
 
 ### 0. 前置条件
 
 ```bash
-# 1) 完整 Xcode（不是 CommandLineTools）
+# 1) 完整 Xcode
 sudo xcode-select -s /Applications/Xcode.app
-xcodebuild -runFirstLaunch
+xcodebuild -runFirstLaunch          # 已生效：-checkFirstLaunchStatus 返回 0
 
-# 2) Rust 与 iOS 目标
+# 2) Command Line Tools —— 必须，且不能只装 Xcode
+xcode-select --install              # macOS 26 上 Homebrew 要求 CLT，见下方说明
+
+# 3) CocoaPods —— 只能由 Homebrew 提供
+brew install cocoapods
+
+# 4) Rust 与 iOS 目标
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 
-# 3) 前端依赖必须在 macOS 上重装：当前 node_modules 是 Linux 容器里装的，
-#    里面只有 @tauri-apps/cli-linux-arm64-gnu，CLI 在 macOS 上无法运行
+# 5) 前端依赖必须在 macOS 上重装：容器里装出来的 node_modules 只有
+#    @tauri-apps/cli-linux-arm64-gnu，CLI 在 macOS 上无法运行
 pnpm install
 ```
 
-- **Xcode 版本（推断，未验证）**：`tauri.ios.conf.json` 声明 `minimumSystemVersion: 18.0`，因此预计需要自带 iOS 18 SDK 的 Xcode（16 及以上）。
-- **磁盘**：Xcode + iOS SDK + 模拟器运行时通常需要数十 GB，本机当前可用约 20 GiB，需要先腾空间。
-- **CocoaPods**：本仓库没有 Podfile，Tauri 的 iOS 工程以 XcodeGen 模板为扩展点，本路线预期不需要 CocoaPods；
-  Tauri CLI 内部是否会调用 CocoaPods 未实测（见未决问题）。
-- **Apple 账号**：模拟器构建不需要签名，可以先用免费账号；真机安装与 NetworkExtension entitlement 必须用付费账号。
+**实测状态（2026-10-16，Xcode 27.0 / macOS 26）**
+
+| 前置条件 | 状态 | 证据 |
+| --- | --- | --- |
+| Xcode 27.0 + iphoneos/iphonesimulator 27.0 SDK | ✅ 已就绪 | `xcodebuild -version`、`xcrun --sdk iphoneos --show-sdk-path` |
+| Rust 1.99.0 + 两个 iOS target | ✅ 已就绪 | `rustc --version`、`rustup target list --installed` |
+| 模拟器 runtime | ✅ iOS 27.0 (24A434) | `xcrun simctl list runtimes`；设备 `iPhone 12 Pro` 可 boot 并出图（1170×2532） |
+| 主机 `pnpm` | ✅ `corepack pnpm`（仓库锁定 pnpm@12.11.2） | 主机无全局 `pnpm` 可执行文件 |
+| **Command Line Tools** | ❌ **未装（当前阻塞）** | `xcode-select --install` 正在下载；缺它时 brew 报 `Xcode alone is not sufficient on Tahoe` |
+| **CocoaPods** | ❌ 未装（依赖 CLT） | 系统 ruby 2.6.10 无法在 Xcode 27 下编译 gem（缺 `Ruby.framework/.../config.h`），所以只能走 brew |
+
+- **CocoaPods 是必需的（此前判断为「预期不需要」，已被推翻）**：`tauri ios init` 会执行 `pod install`，
+  且 CLI 内部还会用 brew 安装 `ios-deploy` / `libimobiledevice` 等依赖；缺 pod 时 init 直接失败，
+  错误形如 `failed to run command pod install: ...`。因此 CLT → brew → CocoaPods 这条链是硬前置。
+- **Xcode 版本**：本机 Xcode 27.0 自带的 SDK 为 iOS 27.0，而 `tauri.ios.conf.json` 只声明部署目标 18.0；
+  用新 SDK 编旧部署目标是允许的。实际可运行的最低系统版本要到模拟器/真机上才能确认（未验证）。
+- **Apple 账号**：模拟器构建不需要签名，可先用免费账号；真机安装与 NetworkExtension entitlement 必须用付费账号。
+  未配置 `bundle.iOS.developmentTeam` 时 CLI 只给出 warning 并继续（已实测该 warning）。
 
 ### 1. 准备构建输入
 
@@ -165,6 +185,7 @@ bash scripts/ios/prepare.sh
 该脚本做两件事：硬性检查 Xcode / iphoneos SDK / rustup 与 iOS target，并下载 gitignore 掉的 geo 数据库到
 `src-tauri/resources`（这些文件在非 Android 平台由 `utils/init.rs:537-568` 从 bundle 资源目录复制到应用数据目录）。
 它**故意不准备内核**：iOS 没有可用的 sidecar，见 §1.1。
+内核库改由 `scripts/ios/build-core.sh` 构建（见 §3.5）。
 
 ### 2. 生成并改造 Xcode 工程
 
